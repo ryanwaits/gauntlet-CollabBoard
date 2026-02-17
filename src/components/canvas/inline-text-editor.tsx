@@ -55,6 +55,10 @@ export function InlineTextEditor({
         e.preventDefault();
         handleBlur();
       }
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        handleBlur();
+      }
       // Stop propagation to prevent board keyboard handlers
       e.stopPropagation();
     },
