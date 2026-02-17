@@ -23,8 +23,8 @@ interface BoardCanvasProps {
   children?: React.ReactNode;
 }
 
-const MIN_SCALE = 0.15;
-const MAX_SCALE = 3;
+const MIN_SCALE = 0.02;
+const MAX_SCALE = 10;
 const ZOOM_STEP = 0.15;
 const DOT_SPACING = 30;
 const BOARD_WIDTH = 4000;
