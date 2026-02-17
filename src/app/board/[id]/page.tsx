@@ -115,7 +115,7 @@ export default function BoardPage() {
         color: d.color,
         text: "",
         z_index: objects.size,
-        created_by: userId || "",
+        created_by: userId || null,
         updated_at: new Date().toISOString(),
       };
       broadcastObjectCreate(sendMessage, obj);

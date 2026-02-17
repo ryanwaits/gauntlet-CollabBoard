@@ -1,3 +1,7 @@
+-- Drop existing tables (cascade drops board_objects via FK)
+DROP TABLE IF EXISTS board_objects CASCADE;
+DROP TABLE IF EXISTS boards CASCADE;
+
 -- Boards table
 CREATE TABLE boards (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -19,7 +23,12 @@ CREATE TABLE board_objects (
   text TEXT NOT NULL DEFAULT '',
   z_index INTEGER NOT NULL DEFAULT 0,
   created_by UUID,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  font_weight TEXT,
+  font_style TEXT,
+  text_decoration TEXT,
+  text_color TEXT,
+  text_align TEXT
 );
 
 CREATE INDEX idx_board_objects_board_id ON board_objects(board_id);

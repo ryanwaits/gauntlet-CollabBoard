@@ -27,7 +27,9 @@ export default class BoardRoom implements Party.Server {
 
     if (supabaseUrl && serviceRoleKey) {
       try {
-        const boardId = this.room.id;
+        const boardId = this.room.id === "default"
+          ? "00000000-0000-0000-0000-000000000000"
+          : this.room.id;
         const res = await fetch(
           `${supabaseUrl}/rest/v1/board_objects?board_id=eq.${boardId}&select=*`,
           {
@@ -150,7 +152,7 @@ export default class BoardRoom implements Party.Server {
     if (!supabaseUrl || !serviceRoleKey) return;
 
     try {
-      await fetch(`${supabaseUrl}/rest/v1/board_objects`, {
+      const res = await fetch(`${supabaseUrl}/rest/v1/board_objects`, {
         method: "POST",
         headers: {
           apikey: serviceRoleKey,
@@ -160,6 +162,10 @@ export default class BoardRoom implements Party.Server {
         },
         body: JSON.stringify(obj),
       });
+      if (!res.ok) {
+        const body = await res.text();
+        console.error(`persistObject failed (${res.status}):`, body);
+      }
     } catch (e) {
       console.error("Failed to persist object:", e);
     }
@@ -171,7 +177,7 @@ export default class BoardRoom implements Party.Server {
     if (!supabaseUrl || !serviceRoleKey) return;
 
     try {
-      await fetch(
+      const res = await fetch(
         `${supabaseUrl}/rest/v1/board_objects?id=eq.${objectId}`,
         {
           method: "DELETE",
@@ -181,6 +187,10 @@ export default class BoardRoom implements Party.Server {
           },
         }
       );
+      if (!res.ok) {
+        const body = await res.text();
+        console.error(`deleteObject failed (${res.status}):`, body);
+      }
     } catch (e) {
       console.error("Failed to delete object:", e);
     }
