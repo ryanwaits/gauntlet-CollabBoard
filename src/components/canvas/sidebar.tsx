@@ -35,19 +35,19 @@ interface SidebarProps {
   aiOpen?: boolean;
 }
 
-const tools: { mode: ToolMode; icon: typeof MousePointer2; label: string }[] = [
-  { mode: "select", icon: MousePointer2, label: "Select" },
-  { mode: "hand", icon: Hand, label: "Hand" },
+const tools: { mode: ToolMode; icon: typeof MousePointer2; label: string; shortcut: string }[] = [
+  { mode: "select", icon: MousePointer2, label: "Select", shortcut: "1" },
+  { mode: "hand", icon: Hand, label: "Hand", shortcut: "2" },
 ];
 
-const creationTools: { mode: ToolMode; icon: typeof StickyNote; label: string }[] = [
-  { mode: "sticky", icon: StickyNote, label: "Sticky Note" },
-  { mode: "text", icon: Type, label: "Text" },
-  { mode: "rectangle", icon: Square, label: "Rectangle" },
-  { mode: "circle", icon: Circle, label: "Circle" },
-  { mode: "diamond", icon: Diamond, label: "Diamond" },
-  { mode: "pill", icon: RectangleHorizontal, label: "Pill" },
-  { mode: "line", icon: Minus, label: "Line" },
+const creationTools: { mode: ToolMode; icon: typeof StickyNote; label: string; shortcut: string }[] = [
+  { mode: "sticky", icon: StickyNote, label: "Sticky Note", shortcut: "S" },
+  { mode: "text", icon: Type, label: "Text", shortcut: "T" },
+  { mode: "rectangle", icon: Square, label: "Rectangle", shortcut: "R" },
+  { mode: "circle", icon: Circle, label: "Circle", shortcut: "C" },
+  { mode: "diamond", icon: Diamond, label: "Diamond", shortcut: "D" },
+  { mode: "pill", icon: RectangleHorizontal, label: "Pill", shortcut: "P" },
+  { mode: "line", icon: Minus, label: "Line", shortcut: "L" },
 ];
 
 export function Sidebar({
@@ -95,7 +95,8 @@ export function Sidebar({
   const renderButton = (
     mode: ToolMode,
     Icon: typeof MousePointer2,
-    label: string
+    label: string,
+    shortcut?: string
   ) => {
     const isActive = activeTool === mode;
     return (
@@ -120,7 +121,7 @@ export function Sidebar({
         </button>
         {hoveredTool === mode && (
           <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow-lg">
-            {label}
+            {label}{shortcut && <span className="ml-1.5 text-gray-400">{shortcut}</span>}
           </div>
         )}
       </div>
@@ -189,11 +190,11 @@ export function Sidebar({
 
       <div className="my-1 h-5 w-px bg-gray-700" />
 
-      {tools.map((t) => renderButton(t.mode, t.icon, t.label))}
+      {tools.map((t) => renderButton(t.mode, t.icon, t.label, t.shortcut))}
 
       <div className="my-1 h-5 w-px bg-gray-700" />
 
-      {creationTools.map((t) => renderButton(t.mode, t.icon, t.label))}
+      {creationTools.map((t) => renderButton(t.mode, t.icon, t.label, t.shortcut))}
 
       {onAIToggle && (
         <>

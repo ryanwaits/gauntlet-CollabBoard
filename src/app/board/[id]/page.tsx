@@ -519,14 +519,14 @@ export default function BoardPage() {
         return;
       }
 
-      // Number keys 1-6 for direct tool selection, L for line
-      const toolKeys: Record<string, ToolMode> = { "1": "select", "2": "hand", "3": "sticky", "4": "rectangle", "5": "text", "6": "circle", "7": "diamond", "8": "pill" };
-      if (!editingId && toolKeys[e.key]) {
+      // Keyboard shortcuts for tool selection
+      const toolKeys: Record<string, ToolMode> = {
+        "1": "select", "2": "hand",
+        "s": "sticky", "t": "text", "r": "rectangle",
+        "c": "circle", "d": "diamond", "p": "pill", "l": "line",
+      };
+      if (!editingId && !(e.metaKey || e.ctrlKey) && toolKeys[e.key]) {
         setActiveTool(toolKeys[e.key]);
-        return;
-      }
-      if (e.key === "l" && !editingId) {
-        setActiveTool("line");
         return;
       }
 
