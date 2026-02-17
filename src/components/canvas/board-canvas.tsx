@@ -17,6 +17,7 @@ interface BoardCanvasProps {
   onStageMouseLeave?: () => void;
   onClickEmpty?: () => void;
   onCanvasClick?: (canvasX: number, canvasY: number) => void;
+  onCanvasDoubleClick?: (canvasX: number, canvasY: number) => void;
   onSelectionRect?: (rect: { x: number; y: number; width: number; height: number } | null) => void;
   onSelectionComplete?: (rect: { x: number; y: number; width: number; height: number }) => void;
   mode?: "select" | "hand";
@@ -33,7 +34,7 @@ const BOARD_OFFSET_X = -BOARD_WIDTH / 2;
 const BOARD_OFFSET_Y = -BOARD_HEIGHT / 2;
 
 export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(function BoardCanvas(
-  { boardId, onStageMouseMove, onStageMouseLeave, onClickEmpty, onCanvasClick, onSelectionRect, onSelectionComplete, mode = "select", children },
+  { boardId, onStageMouseMove, onStageMouseLeave, onClickEmpty, onCanvasClick, onCanvasDoubleClick, onSelectionRect, onSelectionComplete, mode = "select", children },
   ref
 ) {
   const stageRef = useRef<Konva.Stage>(null);
@@ -265,6 +266,21 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
     [onClickEmpty, onCanvasClick]
   );
 
+  const handleDblClick = useCallback(
+    (e: Konva.KonvaEventObject<MouseEvent>) => {
+      if (e.target === e.target.getStage()) {
+        const stage = stageRef.current;
+        if (stage && onCanvasDoubleClick) {
+          const pos = stage.getRelativePointerPosition();
+          if (pos) {
+            onCanvasDoubleClick(pos.x, pos.y);
+          }
+        }
+      }
+    },
+    [onCanvasDoubleClick]
+  );
+
   const handleDragMove = useCallback(() => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -293,6 +309,7 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
           onMouseUp={handleMouseUp}
           onMouseLeave={onStageMouseLeave}
           onClick={handleClick}
+          onDblClick={handleDblClick}
         >
           {/* Board boundary + dot grid — cached as bitmap for perf */}
           <Layer ref={boardLayerRef} listening={false}>
