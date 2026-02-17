@@ -8,6 +8,8 @@ import {
   StickyNote,
   Square,
   Type,
+  Circle,
+  Minus,
   Trash2,
   Menu,
   Home,
@@ -40,6 +42,8 @@ const creationTools: { mode: ToolMode; icon: typeof StickyNote; label: string }[
   { mode: "sticky", icon: StickyNote, label: "Sticky Note" },
   { mode: "rectangle", icon: Square, label: "Rectangle" },
   { mode: "text", icon: Type, label: "Text" },
+  { mode: "circle", icon: Circle, label: "Circle" },
+  { mode: "line", icon: Minus, label: "Line" },
 ];
 
 export function Sidebar({

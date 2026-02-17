@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useParty } from "@/lib/sync/use-party";
@@ -15,10 +15,14 @@ import { ZoomControls } from "@/components/canvas/zoom-controls";
 import { GhostPreview } from "@/components/canvas/ghost-preview";
 import { InlineTextEditor } from "@/components/canvas/inline-text-editor";
 import { FormattingToolbar } from "@/components/canvas/formatting-toolbar";
+import { LineFormattingToolbar } from "@/components/canvas/line-formatting-toolbar";
 import { useViewportStore } from "@/lib/store/viewport-store";
 import { broadcastObjectCreate, broadcastObjectUpdate, broadcastObjectDelete } from "@/lib/sync/broadcast";
+import { computeLineBounds } from "@/lib/geometry/edge-intersection";
+import { findSnapTarget } from "@/lib/geometry/snap";
 import type { BoardObject, ToolMode } from "@/types/board";
 import type { BoardCanvasHandle } from "@/components/canvas/board-canvas";
+import { useLineDrawing } from "@/hooks/use-line-drawing";
 import { AICommandBar } from "@/components/ai/ai-command-bar";
 
 const BoardCanvas = dynamic(
@@ -31,7 +35,12 @@ const CanvasObjects = dynamic(
   { ssr: false }
 );
 
-const CREATION_TOOLS: ToolMode[] = ["sticky", "rectangle", "text"];
+const LineDrawingLayer = dynamic(
+  () => import("@/components/canvas/line-drawing-layer").then((m) => ({ default: m.LineDrawingLayer })),
+  { ssr: false }
+);
+
+const CREATION_TOOLS: ToolMode[] = ["sticky", "rectangle", "text", "circle"];
 const EDITABLE_TYPES: BoardObject["type"][] = ["sticky", "text"];
 
 export default function BoardPage() {
@@ -39,7 +48,7 @@ export default function BoardPage() {
   const roomId = params.id as string;
 
   const { userId, displayName, isAuthenticated, isLoading, restoreSession } = useAuthStore();
-  const { objects, selectedIds, setSelected, setSelectedIds, updateObject } = useBoardStore();
+  const { objects, selectedIds, setSelected, setSelectedIds, updateObject, connectionIndex } = useBoardStore();
   const onlineUsers = usePresenceStore((s) => s.onlineUsers);
   const viewportScale = useViewportStore((s) => s.scale);
   const viewportPos = useViewportStore((s) => s.pos);
@@ -57,6 +66,7 @@ export default function BoardPage() {
   const resizeOriginRef = useRef<{ x: number; y: number } | null>(null);
   const multiDragStartRef = useRef<Map<string, { x: number; y: number }> | null>(null);
   const clipboardRef = useRef<BoardObject[]>([]);
+  const lineDrawing = useLineDrawing();
 
   // Derive single selectedId for editing/formatting (first selected if exactly 1)
   const selectedId = selectedIds.size === 1 ? Array.from(selectedIds)[0] : null;
@@ -79,6 +89,7 @@ export default function BoardPage() {
     (relativePointerPos: { x: number; y: number } | null) => {
       if (!relativePointerPos) return;
       setStageMousePos(relativePointerPos);
+      lineDrawing.setCursorPos(relativePointerPos);
       const now = Date.now();
       if (now - lastCursorSend.current < 16) return;
       lastCursorSend.current = now;
@@ -89,7 +100,7 @@ export default function BoardPage() {
         y: relativePointerPos.y,
       });
     },
-    [sendMessage]
+    [sendMessage, lineDrawing.setCursorPos]
   );
 
   const handleStageMouseLeave = useCallback(() => {
@@ -110,6 +121,8 @@ export default function BoardPage() {
         sticky: { width: 200, height: 200, color: "#fef08a" },
         rectangle: { width: 200, height: 150, color: "#bfdbfe" },
         text: { width: 300, height: 40, color: "transparent" },
+        circle: { width: 150, height: 150, color: "#dbeafe" },
+        line: { width: 0, height: 0, color: "transparent" }, // lines don't use this path
       };
       const d = defaults[type];
       const obj: BoardObject = {
@@ -132,9 +145,29 @@ export default function BoardPage() {
     [roomId, objects.size, userId, sendMessage]
   );
 
+  const finalizeLineDrawing = useCallback(() => {
+    const boardUUID = roomId === "default" ? "00000000-0000-0000-0000-000000000000" : roomId;
+    const obj = lineDrawing.finalize(boardUUID, userId || null, displayName || undefined, objects.size);
+    if (obj) {
+      broadcastObjectCreate(sendMessage, obj);
+      setActiveTool("select");
+    }
+  }, [lineDrawing, roomId, userId, displayName, objects.size, sendMessage]);
+
   const handleCanvasClick = useCallback(
     (canvasX: number, canvasY: number) => {
       (document.activeElement as HTMLElement)?.blur?.();
+      if (activeTool === "line") {
+        let pos = { x: canvasX, y: canvasY };
+        const snap = findSnapTarget(pos, objects);
+        if (snap) pos = { x: snap.x, y: snap.y };
+        if (!lineDrawing.drawingState.isDrawing) {
+          lineDrawing.startPoint(pos, snap?.objectId);
+        } else {
+          lineDrawing.addPoint(pos, snap?.objectId);
+        }
+        return;
+      }
       if (CREATION_TOOLS.includes(activeTool)) {
         createObjectAt(activeTool as BoardObject["type"], canvasX, canvasY);
         setActiveTool("select");
@@ -144,7 +177,18 @@ export default function BoardPage() {
         setSelected(null);
       }
     },
-    [activeTool, createObjectAt, setSelected]
+    [activeTool, createObjectAt, setSelected, lineDrawing]
+  );
+
+  const handleCanvasDoubleClick = useCallback(
+    (_canvasX: number, _canvasY: number) => {
+      if (activeTool === "line" && lineDrawing.drawingState.isDrawing) {
+        // Double-click fires after two click events, so the last point is already added.
+        // Just finalize — don't add another duplicate point.
+        finalizeLineDrawing();
+      }
+    },
+    [activeTool, lineDrawing.drawingState.isDrawing, finalizeLineDrawing]
   );
 
   const handleObjectClick = useCallback(
@@ -271,6 +315,28 @@ export default function BoardPage() {
     [objects, sendMessage, updateObject]
   );
 
+  const handleLineUpdate = useCallback(
+    (lineId: string, updates: Partial<BoardObject>) => {
+      const obj = objects.get(lineId);
+      if (!obj) return;
+      const updated = { ...obj, ...updates, updated_at: new Date().toISOString() };
+      updateObject(updated);
+      broadcastObjectUpdate(sendMessage, updated, true);
+    },
+    [objects, sendMessage, updateObject]
+  );
+
+  const handleLineUpdateEnd = useCallback(
+    (lineId: string, updates: Partial<BoardObject>) => {
+      const obj = objects.get(lineId);
+      if (!obj) return;
+      const updated = { ...obj, ...updates, updated_at: new Date().toISOString() };
+      updateObject(updated);
+      broadcastObjectUpdate(sendMessage, updated, false);
+    },
+    [objects, sendMessage, updateObject]
+  );
+
   const handleInlineSave = useCallback(
     (text: string) => {
       if (!editingId) return;
@@ -302,7 +368,9 @@ export default function BoardPage() {
       for (const id of selectedIds) {
         const obj = objects.get(id);
         if (!obj) continue;
-        const updated = { ...obj, color, updated_at: now };
+        const updated = obj.type === "line"
+          ? { ...obj, stroke_color: color, updated_at: now }
+          : { ...obj, color, updated_at: now };
         updateObject(updated);
         broadcastObjectUpdate(sendMessage, updated, false);
       }
@@ -312,12 +380,20 @@ export default function BoardPage() {
 
   const handleDelete = useCallback(() => {
     if (selectedIds.size === 0) return;
+    // Collect connected lines for cascade delete
+    const toDelete = new Set(selectedIds);
     for (const id of selectedIds) {
+      const connectedLines = connectionIndex.get(id);
+      if (connectedLines) {
+        for (const lineId of connectedLines) toDelete.add(lineId);
+      }
+    }
+    for (const id of toDelete) {
       broadcastObjectDelete(sendMessage, id);
     }
     setSelected(null);
     setEditingId(null);
-  }, [selectedIds, sendMessage, setSelected]);
+  }, [selectedIds, connectionIndex, sendMessage, setSelected]);
 
   const duplicateObjects = useCallback((objs: BoardObject[], offset = 20) => {
     const now = new Date().toISOString();
@@ -366,10 +442,14 @@ export default function BoardPage() {
         return;
       }
 
-      // Number keys 1-5 for direct tool selection
-      const toolKeys: Record<string, ToolMode> = { "1": "select", "2": "hand", "3": "sticky", "4": "rectangle", "5": "text" };
+      // Number keys 1-6 for direct tool selection, L for line
+      const toolKeys: Record<string, ToolMode> = { "1": "select", "2": "hand", "3": "sticky", "4": "rectangle", "5": "text", "6": "circle" };
       if (!editingId && toolKeys[e.key]) {
         setActiveTool(toolKeys[e.key]);
+        return;
+      }
+      if (e.key === "l" && !editingId) {
+        setActiveTool("line");
         return;
       }
 
@@ -392,14 +472,22 @@ export default function BoardPage() {
 
       if (e.key === "Delete" || e.key === "Backspace") {
         if (editingId) return;
+        if (lineDrawing.drawingState.isDrawing) {
+          lineDrawing.removeLastPoint();
+          return;
+        }
         handleDelete();
       }
 
       if (e.key === "Escape") {
         (document.activeElement as HTMLElement)?.blur?.();
+        if (lineDrawing.drawingState.isDrawing) {
+          lineDrawing.cancel();
+          return;
+        }
         if (editingId) {
           setEditingId(null);
-        } else if (CREATION_TOOLS.includes(activeTool)) {
+        } else if (activeTool === "line" || CREATION_TOOLS.includes(activeTool)) {
           setActiveTool("select");
         } else {
           setSelected(null);
@@ -412,16 +500,22 @@ export default function BoardPage() {
         return;
       }
 
-      if (e.key === "Enter" && !editingId && selectedId) {
-        const obj = objects.get(selectedId);
-        if (obj && EDITABLE_TYPES.includes(obj.type)) {
-          setEditingId(selectedId);
+      if (e.key === "Enter") {
+        if (lineDrawing.drawingState.isDrawing) {
+          finalizeLineDrawing();
+          return;
+        }
+        if (!editingId && selectedId) {
+          const obj = objects.get(selectedId);
+          if (obj && EDITABLE_TYPES.includes(obj.type)) {
+            setEditingId(selectedId);
+          }
         }
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [handleDelete, duplicateObjects, editingId, selectedId, selectedIds, objects, setSelected, activeTool]);
+  }, [handleDelete, duplicateObjects, editingId, selectedId, selectedIds, objects, setSelected, activeTool, lineDrawing, finalizeLineDrawing]);
 
   const handleSelectionRect = useCallback(
     (rect: { x: number; y: number; width: number; height: number } | null) => {
@@ -439,10 +533,14 @@ export default function BoardPage() {
       const rr = rect.x + rect.width;
       const rb = rect.y + rect.height;
       for (const obj of objects.values()) {
-        const ox = obj.x;
-        const oy = obj.y;
-        const or = obj.x + obj.width;
-        const ob = obj.y + obj.height;
+        let bounds = { x: obj.x, y: obj.y, width: obj.width, height: obj.height };
+        if (obj.type === "line" && obj.points && obj.points.length >= 2) {
+          bounds = computeLineBounds(obj.points);
+        }
+        const ox = bounds.x;
+        const oy = bounds.y;
+        const or = bounds.x + bounds.width;
+        const ob = bounds.y + bounds.height;
         if (ox < rr && or > rx && oy < rb && ob > ry) {
           ids.add(obj.id);
         }
@@ -455,6 +553,12 @@ export default function BoardPage() {
     },
     [objects, setSelected, setSelectedIds]
   );
+
+  // Snap target for line drawing — uses stageMousePos so it works before drawing starts
+  const lineSnapTarget = useMemo(() => {
+    if (activeTool !== "line" || !stageMousePos) return null;
+    return findSnapTarget(stageMousePos, objects);
+  }, [activeTool, stageMousePos, objects]);
 
   if (isLoading) {
     return (
@@ -474,6 +578,7 @@ export default function BoardPage() {
 
   const currentUserColor = onlineUsers.find((u) => u.userId === userId)?.color || "#3b82f6";
   const isCreationTool = CREATION_TOOLS.includes(activeTool);
+  const isLineTool = activeTool === "line";
   const canvasMode: "hand" | "select" = activeTool === "hand" ? "hand" : "select";
   const editingObject = editingId ? objects.get(editingId) : undefined;
   const firstSelectedId = selectedIds.size > 0 ? Array.from(selectedIds)[0] : null;
@@ -483,7 +588,7 @@ export default function BoardPage() {
       className="relative h-screen w-screen overflow-hidden bg-gray-50"
       onMouseMove={isCreationTool ? handleMouseMove : undefined}
       onMouseLeave={isCreationTool ? handleMouseLeave : undefined}
-      style={{ cursor: isCreationTool ? "crosshair" : undefined }}
+      style={{ cursor: isCreationTool || isLineTool ? "crosshair" : undefined }}
     >
       {/* Presence + connection status */}
       <div className="absolute right-4 top-4 z-40 flex items-center gap-3">
@@ -508,6 +613,7 @@ export default function BoardPage() {
           setSelected(null);
         }}
         onCanvasClick={handleCanvasClick}
+        onCanvasDoubleClick={handleCanvasDoubleClick}
         onSelectionRect={handleSelectionRect}
         onSelectionComplete={handleSelectionComplete}
       >
@@ -529,10 +635,19 @@ export default function BoardPage() {
           onDoubleClick={handleObjectClick}
           onResize={handleResize}
           onResizeEnd={handleResizeEnd}
+          onLineUpdate={handleLineUpdate}
+          onLineUpdateEnd={handleLineUpdateEnd}
           interactive={activeTool === "select"}
           editingId={editingId}
           scale={viewportScale}
         />
+        {isLineTool && (
+          <LineDrawingLayer
+            points={lineDrawing.drawingState.points}
+            cursorPos={lineDrawing.drawingState.cursorPos}
+            snapTarget={lineSnapTarget}
+          />
+        )}
       </BoardCanvas>
 
       {/* Selection rect overlay */}
@@ -568,6 +683,24 @@ export default function BoardPage() {
           />
         </>
       )}
+
+      {/* Line formatting toolbar */}
+      {!editingId && selectedId && (() => {
+        const selObj = objects.get(selectedId);
+        if (!selObj || selObj.type !== "line") return null;
+        const bounds = selObj.points && selObj.points.length >= 2
+          ? computeLineBounds(selObj.points)
+          : { x: selObj.x, y: selObj.y, width: selObj.width, height: selObj.height };
+        return (
+          <LineFormattingToolbar
+            object={selObj}
+            onUpdate={(updates) => handleLineUpdateEnd(selectedId, updates)}
+            screenX={bounds.x * viewportScale + viewportPos.x}
+            screenY={bounds.y * viewportScale + viewportPos.y}
+            screenW={bounds.width * viewportScale}
+          />
+        );
+      })()}
 
       {/* Cursor overlay */}
       <CursorsOverlay
