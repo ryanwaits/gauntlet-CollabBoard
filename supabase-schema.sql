@@ -37,7 +37,8 @@ CREATE TABLE board_objects (
   end_arrow BOOLEAN,
   start_object_id UUID,
   end_object_id UUID,
-  label TEXT
+  label TEXT,
+  rotation DOUBLE PRECISION DEFAULT 0
 );
 
 CREATE INDEX idx_board_objects_board_id ON board_objects(board_id);

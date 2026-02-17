@@ -28,6 +28,7 @@ export interface BoardObject {
   start_object_id?: string | null;
   end_object_id?: string | null;
   label?: string;
+  rotation?: number;
 }
 
 export interface CursorData {
