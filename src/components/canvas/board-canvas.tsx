@@ -136,29 +136,39 @@ export const BoardCanvas = forwardRef<BoardCanvasHandle, BoardCanvasProps>(funct
       const stage = stageRef.current;
       if (!stage) return;
 
-      const oldScale = stage.scaleX();
-      const pointer = stage.getPointerPosition()!;
+      // Pinch-to-zoom (trackpad sends ctrlKey=true) or Cmd/Ctrl+scroll → zoom
+      if (e.evt.ctrlKey || e.evt.metaKey) {
+        const oldScale = stage.scaleX();
+        const pointer = stage.getPointerPosition()!;
+        const mousePointTo = {
+          x: (pointer.x - stage.x()) / oldScale,
+          y: (pointer.y - stage.y()) / oldScale,
+        };
 
-      const mousePointTo = {
-        x: (pointer.x - stage.x()) / oldScale,
-        y: (pointer.y - stage.y()) / oldScale,
-      };
+        const direction = e.evt.deltaY > 0 ? -1 : 1;
+        const factor = 1.05;
+        let newScale = direction > 0 ? oldScale * factor : oldScale / factor;
+        newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
 
-      const direction = e.evt.deltaY > 0 ? -1 : 1;
-      const factor = 1.05;
-      let newScale = direction > 0 ? oldScale * factor : oldScale / factor;
-      newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
-
-      stage.scale({ x: newScale, y: newScale });
-
-      const newPos = {
-        x: pointer.x - mousePointTo.x * newScale,
-        y: pointer.y - mousePointTo.y * newScale,
-      };
-      stage.position(newPos);
-
-      useViewportStore.getState().setViewport(newPos, newScale);
-      debouncedSave(newPos, newScale);
+        stage.scale({ x: newScale, y: newScale });
+        const newPos = {
+          x: pointer.x - mousePointTo.x * newScale,
+          y: pointer.y - mousePointTo.y * newScale,
+        };
+        stage.position(newPos);
+        useViewportStore.getState().setViewport(newPos, newScale);
+        debouncedSave(newPos, newScale);
+      } else {
+        // Regular scroll/swipe → pan
+        const pos = stage.position();
+        const newPos = {
+          x: pos.x - e.evt.deltaX,
+          y: pos.y - e.evt.deltaY,
+        };
+        stage.position(newPos);
+        useViewportStore.getState().setViewport(newPos, stage.scaleX());
+        debouncedSave(newPos, stage.scaleX());
+      }
     },
     [debouncedSave]
   );
