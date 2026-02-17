@@ -23,6 +23,7 @@ import { findSnapTarget } from "@/lib/geometry/snap";
 import type { BoardObject, ToolMode } from "@/types/board";
 import type { BoardCanvasHandle } from "@/components/canvas/board-canvas";
 import { useLineDrawing } from "@/hooks/use-line-drawing";
+import { useUndoRedo } from "@/hooks/use-undo-redo";
 import { AICommandBar } from "@/components/ai/ai-command-bar";
 
 const BoardCanvas = dynamic(
@@ -67,6 +68,9 @@ export default function BoardPage() {
   const multiDragStartRef = useRef<Map<string, { x: number; y: number }> | null>(null);
   const clipboardRef = useRef<BoardObject[]>([]);
   const lineDrawing = useLineDrawing();
+  const dragBeforeRef = useRef<BoardObject[] | null>(null);
+  const resizeBeforeRef = useRef<BoardObject | null>(null);
+  const lineEditBeforeRef = useRef<BoardObject | null>(null);
 
   // Derive single selectedId for editing/formatting (first selected if exactly 1)
   const selectedId = selectedIds.size === 1 ? Array.from(selectedIds)[0] : null;
@@ -84,6 +88,8 @@ export default function BoardPage() {
     userId: userId || "",
     displayName: displayName || "",
   });
+
+  const { recordAction, undo, redo } = useUndoRedo(sendMessage);
 
   const handleStageMouseMove = useCallback(
     (relativePointerPos: { x: number; y: number } | null) => {
@@ -143,8 +149,9 @@ export default function BoardPage() {
         updated_at: new Date().toISOString(),
       };
       broadcastObjectCreate(sendMessage, obj);
+      recordAction({ type: "create", objects: [obj] });
     },
-    [roomId, objects.size, userId, sendMessage]
+    [roomId, objects.size, userId, sendMessage, recordAction]
   );
 
   const finalizeLineDrawing = useCallback(() => {
@@ -152,9 +159,10 @@ export default function BoardPage() {
     const obj = lineDrawing.finalize(boardUUID, userId || null, displayName || undefined, objects.size);
     if (obj) {
       broadcastObjectCreate(sendMessage, obj);
+      recordAction({ type: "create", objects: [obj] });
       setActiveTool("select");
     }
-  }, [lineDrawing, roomId, userId, displayName, objects.size, sendMessage]);
+  }, [lineDrawing, roomId, userId, displayName, objects.size, sendMessage, recordAction]);
 
   const handleCanvasClick = useCallback(
     (canvasX: number, canvasY: number) => {
@@ -214,11 +222,16 @@ export default function BoardPage() {
         if (!multiDragStartRef.current) {
           // Capture start positions for all selected objects
           const starts = new Map<string, { x: number; y: number }>();
+          const snapshots: BoardObject[] = [];
           for (const id of selectedIds) {
             const o = objects.get(id);
-            if (o) starts.set(id, { x: o.x, y: o.y });
+            if (o) {
+              starts.set(id, { x: o.x, y: o.y });
+              snapshots.push({ ...o });
+            }
           }
           multiDragStartRef.current = starts;
+          dragBeforeRef.current = snapshots;
         }
         const startPos = multiDragStartRef.current.get(objectId);
         if (!startPos) return;
@@ -234,6 +247,11 @@ export default function BoardPage() {
           broadcastObjectUpdate(sendMessage, updated, true);
         }
         return;
+      }
+
+      // Capture single-drag snapshot on first move
+      if (!dragBeforeRef.current) {
+        dragBeforeRef.current = [{ ...obj }];
       }
 
       const updated = { ...obj, x, y, updated_at: new Date().toISOString() };
@@ -254,6 +272,7 @@ export default function BoardPage() {
           const dx = x - startPos.x;
           const dy = y - startPos.y;
           const now = new Date().toISOString();
+          const afterObjs: BoardObject[] = [];
           for (const id of selectedIds) {
             const o = objects.get(id);
             const sp = multiDragStartRef.current.get(id);
@@ -261,18 +280,27 @@ export default function BoardPage() {
             const updated = { ...o, x: sp.x + dx, y: sp.y + dy, updated_at: now };
             updateObject(updated);
             broadcastObjectUpdate(sendMessage, updated, false);
+            afterObjs.push(updated);
+          }
+          if (dragBeforeRef.current) {
+            recordAction({ type: "update", before: dragBeforeRef.current, after: afterObjs });
           }
         }
         multiDragStartRef.current = null;
+        dragBeforeRef.current = null;
         return;
       }
 
       const updated = { ...obj, x, y, updated_at: new Date().toISOString() };
       updateObject(updated);
       broadcastObjectUpdate(sendMessage, updated, false);
+      if (dragBeforeRef.current) {
+        recordAction({ type: "update", before: dragBeforeRef.current, after: [updated] });
+      }
       multiDragStartRef.current = null;
+      dragBeforeRef.current = null;
     },
-    [objects, selectedIds, sendMessage, updateObject]
+    [objects, selectedIds, sendMessage, updateObject, recordAction]
   );
 
   const handleResize = useCallback(
@@ -281,6 +309,7 @@ export default function BoardPage() {
       if (!obj) return;
       if (!resizeOriginRef.current) {
         resizeOriginRef.current = { x: obj.x, y: obj.y };
+        resizeBeforeRef.current = { ...obj };
       }
       const origin = resizeOriginRef.current;
       const updated = {
@@ -312,15 +341,22 @@ export default function BoardPage() {
       };
       updateObject(updated);
       broadcastObjectUpdate(sendMessage, updated, false);
+      if (resizeBeforeRef.current) {
+        recordAction({ type: "update", before: [resizeBeforeRef.current], after: [updated] });
+      }
       resizeOriginRef.current = null;
+      resizeBeforeRef.current = null;
     },
-    [objects, sendMessage, updateObject]
+    [objects, sendMessage, updateObject, recordAction]
   );
 
   const handleLineUpdate = useCallback(
     (lineId: string, updates: Partial<BoardObject>) => {
       const obj = objects.get(lineId);
       if (!obj) return;
+      if (!lineEditBeforeRef.current) {
+        lineEditBeforeRef.current = { ...obj };
+      }
       const updated = { ...obj, ...updates, updated_at: new Date().toISOString() };
       updateObject(updated);
       broadcastObjectUpdate(sendMessage, updated, true);
@@ -335,8 +371,12 @@ export default function BoardPage() {
       const updated = { ...obj, ...updates, updated_at: new Date().toISOString() };
       updateObject(updated);
       broadcastObjectUpdate(sendMessage, updated, false);
+      if (lineEditBeforeRef.current) {
+        recordAction({ type: "update", before: [lineEditBeforeRef.current], after: [updated] });
+      }
+      lineEditBeforeRef.current = null;
     },
-    [objects, sendMessage, updateObject]
+    [objects, sendMessage, updateObject, recordAction]
   );
 
   const handleInlineSave = useCallback(
@@ -344,11 +384,13 @@ export default function BoardPage() {
       if (!editingId) return;
       const obj = objects.get(editingId);
       if (!obj) return;
+      const before = { ...obj };
       const updated = { ...obj, text, updated_at: new Date().toISOString() };
       updateObject(updated);
       broadcastObjectUpdate(sendMessage, updated, false);
+      recordAction({ type: "update", before: [before], after: [updated] });
     },
-    [editingId, objects, sendMessage, updateObject]
+    [editingId, objects, sendMessage, updateObject, recordAction]
   );
 
   const handleFormatChange = useCallback(
@@ -356,28 +398,37 @@ export default function BoardPage() {
       if (!editingId) return;
       const obj = objects.get(editingId);
       if (!obj) return;
+      const before = { ...obj };
       const updated = { ...obj, ...updates, updated_at: new Date().toISOString() };
       updateObject(updated);
       broadcastObjectUpdate(sendMessage, updated, false);
+      recordAction({ type: "update", before: [before], after: [updated] });
     },
-    [editingId, objects, sendMessage, updateObject]
+    [editingId, objects, sendMessage, updateObject, recordAction]
   );
 
   const handleColorChange = useCallback(
     (color: string) => {
       if (selectedIds.size === 0) return;
       const now = new Date().toISOString();
+      const beforeObjs: BoardObject[] = [];
+      const afterObjs: BoardObject[] = [];
       for (const id of selectedIds) {
         const obj = objects.get(id);
         if (!obj) continue;
+        beforeObjs.push({ ...obj });
         const updated = obj.type === "line"
           ? { ...obj, stroke_color: color, updated_at: now }
           : { ...obj, color, updated_at: now };
         updateObject(updated);
         broadcastObjectUpdate(sendMessage, updated, false);
+        afterObjs.push(updated);
+      }
+      if (beforeObjs.length > 0) {
+        recordAction({ type: "update", before: beforeObjs, after: afterObjs });
       }
     },
-    [selectedIds, objects, sendMessage, updateObject]
+    [selectedIds, objects, sendMessage, updateObject, recordAction]
   );
 
   const handleDelete = useCallback(() => {
@@ -390,12 +441,21 @@ export default function BoardPage() {
         for (const lineId of connectedLines) toDelete.add(lineId);
       }
     }
+    // Snapshot all objects before deleting
+    const deletedObjs: BoardObject[] = [];
+    for (const id of toDelete) {
+      const obj = objects.get(id);
+      if (obj) deletedObjs.push({ ...obj });
+    }
     for (const id of toDelete) {
       broadcastObjectDelete(sendMessage, id);
     }
+    if (deletedObjs.length > 0) {
+      recordAction({ type: "delete", objects: deletedObjs });
+    }
     setSelected(null);
     setEditingId(null);
-  }, [selectedIds, connectionIndex, sendMessage, setSelected]);
+  }, [selectedIds, connectionIndex, objects, sendMessage, setSelected, recordAction]);
 
   const duplicateObjects = useCallback((objs: BoardObject[], offset = 20) => {
     const now = new Date().toISOString();
@@ -420,9 +480,12 @@ export default function BoardPage() {
       newObjs.push(newObj);
       newIds.add(newObj.id);
     }
+    if (newObjs.length > 0) {
+      recordAction({ type: "create", objects: newObjs });
+    }
     setSelectedIds(newIds);
     return newObjs;
-  }, [objects, userId, displayName, sendMessage, setSelectedIds]);
+  }, [objects, userId, displayName, sendMessage, setSelectedIds, recordAction]);
 
   // Keyboard handler
   useEffect(() => {
@@ -441,6 +504,18 @@ export default function BoardPage() {
 
       // Skip when in input/textarea
       if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") {
+        return;
+      }
+
+      // Undo / Redo
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && e.shiftKey) {
+        e.preventDefault();
+        redo();
         return;
       }
 
@@ -517,7 +592,7 @@ export default function BoardPage() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [handleDelete, duplicateObjects, editingId, selectedId, selectedIds, objects, setSelected, activeTool, lineDrawing, finalizeLineDrawing]);
+  }, [handleDelete, duplicateObjects, editingId, selectedId, selectedIds, objects, setSelected, activeTool, lineDrawing, finalizeLineDrawing, undo, redo]);
 
   const handleSelectionRect = useCallback(
     (rect: { x: number; y: number; width: number; height: number } | null) => {

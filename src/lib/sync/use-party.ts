@@ -5,6 +5,7 @@ import PartySocket from "partysocket";
 import type { ClientMessage, ServerMessage } from "@/types/messages";
 import { usePresenceStore } from "@/lib/store/presence-store";
 import { useBoardStore } from "@/lib/store/board-store";
+import { useUndoStore } from "@/lib/store/undo-store";
 
 interface UsePartyOptions {
   roomId: string;
@@ -46,6 +47,7 @@ export function useParty({ roomId, userId, displayName }: UsePartyOptions) {
           break;
         case "sync":
           syncAll(data.objects);
+          useUndoStore.getState().clear();
           break;
         case "object:create":
           addObject(data.object);
