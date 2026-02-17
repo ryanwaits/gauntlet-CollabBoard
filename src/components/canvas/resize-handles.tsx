@@ -8,6 +8,9 @@ interface ResizeHandlesProps {
   width: number;
   height: number;
   scale: number;
+  rotation?: number;
+  objectX?: number;
+  objectY?: number;
   onResize: (updates: { x: number; y: number; width: number; height: number }) => void;
   onResizeEnd: (updates: { x: number; y: number; width: number; height: number }) => void;
   visible: boolean;
@@ -58,10 +61,75 @@ function computeUpdates(corner: Corner, dx: number, dy: number, startW: number, 
   return { x: newX, y: newY, width: newW, height: newH };
 }
 
+/**
+ * Compute resize updates for a rotated shape using the anchor-corner algorithm.
+ * The corner opposite to the one being dragged stays fixed in world space.
+ */
+function computeRotatedUpdates(
+  corner: Corner,
+  dx: number,
+  dy: number,
+  startW: number,
+  startH: number,
+  rotation: number,
+  objX: number,
+  objY: number,
+) {
+  const rad = rotation * (Math.PI / 180);
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+
+  // Un-rotate mouse deltas to local space
+  const localDx = dx * cos + dy * sin;
+  const localDy = -dx * sin + dy * cos;
+
+  // Compute new size in local space
+  const local = computeUpdates(corner, localDx, localDy, startW, startH);
+
+  // Old center
+  const oldCx = objX + startW / 2;
+  const oldCy = objY + startH / 2;
+
+  // Anchor corner's local offset from center (opposite corner to the one being dragged)
+  let aX: number, aY: number;
+  switch (corner) {
+    case "br": aX = -startW / 2; aY = -startH / 2; break; // anchor = tl
+    case "bl": aX = startW / 2; aY = -startH / 2; break;   // anchor = tr
+    case "tr": aX = -startW / 2; aY = startH / 2; break;   // anchor = bl
+    case "tl": aX = startW / 2; aY = startH / 2; break;     // anchor = br
+  }
+
+  // Anchor corner in world space
+  const anchorWX = oldCx + aX * cos - aY * sin;
+  const anchorWY = oldCy + aX * sin + aY * cos;
+
+  // New anchor offset from new center (same corner, new dimensions)
+  let naX: number, naY: number;
+  switch (corner) {
+    case "br": naX = -local.width / 2; naY = -local.height / 2; break;
+    case "bl": naX = local.width / 2; naY = -local.height / 2; break;
+    case "tr": naX = -local.width / 2; naY = local.height / 2; break;
+    case "tl": naX = local.width / 2; naY = local.height / 2; break;
+  }
+
+  // New center: anchor stays fixed → newCenter = anchorWorld - rotate(newAnchorLocal, R)
+  const newCx = anchorWX - (naX * cos - naY * sin);
+  const newCy = anchorWY - (naX * sin + naY * cos);
+
+  // New top-left, as delta from original position
+  const newX = newCx - local.width / 2;
+  const newY = newCy - local.height / 2;
+
+  return { x: newX - objX, y: newY - objY, width: local.width, height: local.height };
+}
+
 export const ResizeHandles = memo(function ResizeHandles({
   width,
   height,
   scale,
+  rotation = 0,
+  objectX = 0,
+  objectY = 0,
   onResize,
   onResizeEnd,
   visible,
@@ -73,6 +141,9 @@ export const ResizeHandles = memo(function ResizeHandles({
     startW: number;
     startH: number;
     stageScale: number;
+    rotation: number;
+    objX: number;
+    objY: number;
   } | null>(null);
 
   const onResizeRef = useRef(onResize);
@@ -80,24 +151,32 @@ export const ResizeHandles = memo(function ResizeHandles({
   const onResizeEndRef = useRef(onResizeEnd);
   onResizeEndRef.current = onResizeEnd;
 
+  const compute = useCallback((dx: number, dy: number) => {
+    const d = dragRef.current!;
+    if (d.rotation === 0) {
+      return computeUpdates(d.corner, dx, dy, d.startW, d.startH);
+    }
+    return computeRotatedUpdates(d.corner, dx, dy, d.startW, d.startH, d.rotation, d.objX, d.objY);
+  }, []);
+
   const handleWindowMouseMove = useCallback((e: MouseEvent) => {
     const d = dragRef.current;
     if (!d) return;
     const dx = (e.clientX - d.startClientX) / d.stageScale;
     const dy = (e.clientY - d.startClientY) / d.stageScale;
-    onResizeRef.current(computeUpdates(d.corner, dx, dy, d.startW, d.startH));
-  }, []);
+    onResizeRef.current(compute(dx, dy));
+  }, [compute]);
 
   const handleWindowMouseUp = useCallback((e: MouseEvent) => {
     const d = dragRef.current;
     if (!d) return;
     const dx = (e.clientX - d.startClientX) / d.stageScale;
     const dy = (e.clientY - d.startClientY) / d.stageScale;
-    onResizeEndRef.current(computeUpdates(d.corner, dx, dy, d.startW, d.startH));
+    onResizeEndRef.current(compute(dx, dy));
     dragRef.current = null;
     window.removeEventListener("mousemove", handleWindowMouseMove);
     window.removeEventListener("mouseup", handleWindowMouseUp);
-  }, [handleWindowMouseMove]);
+  }, [compute, handleWindowMouseMove]);
 
   const handleMouseDown = useCallback((corner: Corner, e: Konva.KonvaEventObject<MouseEvent>) => {
     e.cancelBubble = true;
@@ -111,11 +190,14 @@ export const ResizeHandles = memo(function ResizeHandles({
       startW: width,
       startH: height,
       stageScale: stage.scaleX(),
+      rotation,
+      objX: objectX,
+      objY: objectY,
     };
 
     window.addEventListener("mousemove", handleWindowMouseMove);
     window.addEventListener("mouseup", handleWindowMouseUp);
-  }, [width, height, handleWindowMouseMove, handleWindowMouseUp]);
+  }, [width, height, rotation, objectX, objectY, handleWindowMouseMove, handleWindowMouseUp]);
 
   if (!visible) return null;
 
