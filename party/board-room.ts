@@ -51,6 +51,67 @@ export default class BoardRoom implements Party.Server {
     }
   }
 
+  async onRequest(req: Party.Request): Promise<Response> {
+    if (req.method === "GET") {
+      return Response.json({ objects: Array.from(this.objects.values()) });
+    }
+
+    if (req.method === "POST") {
+      const aiSecret = this.room.env.AI_SECRET as string;
+      if (!aiSecret) {
+        return Response.json({ error: "AI_SECRET not configured" }, { status: 500 });
+      }
+      const auth = req.headers.get("Authorization");
+      if (auth !== `Bearer ${aiSecret}`) {
+        return Response.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      const body = (await req.json()) as {
+        actions: Array<{
+          type: "create" | "update" | "delete";
+          object?: BoardObject;
+          objectId?: string;
+        }>;
+      };
+
+      for (const action of body.actions) {
+        switch (action.type) {
+          case "create": {
+            if (!action.object) continue;
+            this.objects.set(action.object.id, action.object);
+            const msg: ServerMessage = { type: "object:create", object: action.object };
+            this.room.broadcast(JSON.stringify(msg));
+            this.persistObject(action.object);
+            break;
+          }
+          case "update": {
+            if (!action.object) continue;
+            const existing = this.objects.get(action.object.id);
+            if (!existing || action.object.updated_at >= existing.updated_at) {
+              this.objects.set(action.object.id, action.object);
+              const msg: ServerMessage = { type: "object:update", object: action.object };
+              this.room.broadcast(JSON.stringify(msg));
+              this.persistObject(action.object);
+            }
+            break;
+          }
+          case "delete": {
+            if (!action.objectId) continue;
+            this.objects.delete(action.objectId);
+            const msg: ServerMessage = { type: "object:delete", objectId: action.objectId };
+            this.room.broadcast(JSON.stringify(msg));
+            this.deleteObject(action.objectId);
+            break;
+          }
+        }
+      }
+
+      return Response.json({ ok: true, processed: body.actions.length });
+    }
+
+    return Response.json({ error: "Method not allowed" }, { status: 405 });
+  }
+
   onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
     const url = new URL(ctx.request.url);
     const userId = url.searchParams.get("userId") || conn.id;
