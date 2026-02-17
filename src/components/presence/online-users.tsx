@@ -11,14 +11,19 @@ function getInitials(name: string): string {
     .slice(0, 2);
 }
 
+const MAX_VISIBLE = 4;
+
 export function OnlineUsers() {
   const onlineUsers = usePresenceStore((s) => s.onlineUsers);
 
   if (onlineUsers.length === 0) return null;
 
+  const visible = onlineUsers.slice(0, MAX_VISIBLE);
+  const overflow = onlineUsers.length - MAX_VISIBLE;
+
   return (
     <div className="flex -space-x-2">
-      {onlineUsers.map((user) => (
+      {visible.map((user) => (
         <div
           key={user.userId}
           className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-xs font-medium text-white shadow-md"
@@ -28,6 +33,11 @@ export function OnlineUsers() {
           {getInitials(user.displayName)}
         </div>
       ))}
+      {overflow > 0 && (
+        <div className="flex h-8 w-8 cursor-default items-center justify-center rounded-full border-2 border-white bg-slate-100 text-xs font-medium text-slate-500 shadow-md hover:bg-slate-200">
+          +{overflow}
+        </div>
+      )}
     </div>
   );
 }
