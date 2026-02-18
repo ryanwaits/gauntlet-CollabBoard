@@ -31,6 +31,12 @@ export interface BoardObject {
   rotation?: number;
 }
 
+export interface Frame {
+  id: string;
+  index: number;
+  label: string;
+}
+
 export interface CursorData {
   userId: string;
   displayName: string;
