@@ -21,9 +21,12 @@ export const useFrameStore = create<FrameState>((set, get) => ({
   activeFrameIndex: 0,
 
   addFrame: (frame) =>
-    set((s) => ({
-      frames: [...s.frames, frame].sort((a, b) => a.index - b.index),
-    })),
+    set((s) => {
+      if (s.frames.some((f) => f.id === frame.id)) return s;
+      return {
+        frames: [...s.frames, frame].sort((a, b) => a.index - b.index),
+      };
+    }),
 
   deleteFrame: (frameId) =>
     set((s) => {

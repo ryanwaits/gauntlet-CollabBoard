@@ -229,7 +229,7 @@ export default class BoardRoom implements Party.Server {
         this.frames.push(data.frame);
         this.frames.sort((a, b) => a.index - b.index);
         const msg: ServerMessage = { type: "frame:create", frame: data.frame };
-        this.room.broadcast(JSON.stringify(msg));
+        this.room.broadcast(JSON.stringify(msg), [sender.id]);
         this.persistFrames();
         break;
       }
