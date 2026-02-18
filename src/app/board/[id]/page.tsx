@@ -17,11 +17,12 @@ import { InlineTextEditor } from "@/components/canvas/inline-text-editor";
 import { FormattingToolbar } from "@/components/canvas/formatting-toolbar";
 import { LineFormattingToolbar } from "@/components/canvas/line-formatting-toolbar";
 import { useViewportStore } from "@/lib/store/viewport-store";
-import { broadcastObjectCreate, broadcastObjectUpdate, broadcastObjectDelete } from "@/lib/sync/broadcast";
+import { broadcastObjectCreate, broadcastObjectUpdate, broadcastObjectDelete, broadcastFrameCreate } from "@/lib/sync/broadcast";
 import { computeLineBounds } from "@/lib/geometry/edge-intersection";
 import { getRotatedAABB } from "@/lib/geometry/rotation";
 import { findSnapTarget } from "@/lib/geometry/snap";
-import type { BoardObject, ToolMode } from "@/types/board";
+import type { BoardObject, ToolMode, Frame } from "@/types/board";
+import { useFrameStore } from "@/lib/store/frame-store";
 import type { BoardCanvasHandle } from "@/components/canvas/board-canvas";
 import { useLineDrawing } from "@/hooks/use-line-drawing";
 import { useUndoRedo } from "@/hooks/use-undo-redo";
@@ -664,6 +665,25 @@ export default function BoardPage() {
     [objects, setSelected, setSelectedIds]
   );
 
+  const handleNewFrame = useCallback(async () => {
+    const { nextFrameIndex, addFrame } = useFrameStore.getState();
+    const index = nextFrameIndex();
+    const frame: Frame = {
+      id: crypto.randomUUID(),
+      index,
+      label: `Frame ${index + 1}`,
+    };
+    broadcastFrameCreate(sendMessage, frame);
+    addFrame(frame);
+
+    // Animate: zoom out to fit all frames, then zoom into new frame
+    if (canvasRef.current) {
+      await canvasRef.current.zoomToFitAll();
+      await new Promise((r) => setTimeout(r, 300));
+      canvasRef.current.navigateToFrame(index);
+    }
+  }, [sendMessage]);
+
   // Snap target for line drawing — uses stageMousePos so it works before drawing starts
   const lineSnapTarget = useMemo(() => {
     if (activeTool !== "line" || !stageMousePos) return null;
@@ -832,6 +852,7 @@ export default function BoardPage() {
         currentBoardId={roomId}
         onAIToggle={() => setAiOpen((v) => !v)}
         aiOpen={aiOpen}
+        onNewFrame={handleNewFrame}
       />
 
       {/* AI Command Bar */}

@@ -17,6 +17,7 @@ import {
   Home,
   LogOut,
   Sparkles,
+  Plus,
 } from "lucide-react";
 import { ColorPicker } from "./color-picker";
 import { fetchBoards, type Board } from "@/lib/supabase/boards";
@@ -33,6 +34,7 @@ interface SidebarProps {
   currentBoardId?: string;
   onAIToggle?: () => void;
   aiOpen?: boolean;
+  onNewFrame?: () => void;
 }
 
 const tools: { mode: ToolMode; icon: typeof MousePointer2; label: string; shortcut: string }[] = [
@@ -60,6 +62,7 @@ export function Sidebar({
   currentBoardId,
   onAIToggle,
   aiOpen,
+  onNewFrame,
 }: SidebarProps) {
   const signOut = useAuthStore((s) => s.signOut);
   const [hoveredTool, setHoveredTool] = useState<ToolMode | null>(null);
@@ -174,6 +177,18 @@ export function Sidebar({
               )}
             </div>
             <div className="my-2 h-px bg-gray-200" />
+            {onNewFrame && (
+              <button
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-800"
+                onClick={() => {
+                  setBoardPanelOpen(false);
+                  onNewFrame();
+                }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                New Frame
+              </button>
+            )}
             <button
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
               onClick={() => {
