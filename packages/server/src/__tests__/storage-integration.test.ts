@@ -186,4 +186,92 @@ describe("Server Storage Integration (raw WS)", () => {
     expect(initialStorage).toHaveBeenCalledTimes(1);
     expect(initialStorage.mock.calls[0][0]).toBe("room1");
   });
+
+  // --- Task #6: concurrent connects call initialStorage only once ---
+
+  it("concurrent connects call initialStorage only once", async () => {
+    let callCount = 0;
+    const initialStorage = async () => {
+      callCount++;
+      await new Promise((r) => setTimeout(r, 50)); // simulate async work
+      return {
+        type: "LiveObject" as const,
+        data: { seeded: true },
+      };
+    };
+    server = new OpenBlocksServer({ initialStorage });
+    await server.start(0);
+
+    // Connect 2 clients simultaneously
+    const wsA = track(connectClient(server.port, "race-room", { userId: "alice" }));
+    const wsB = track(connectClient(server.port, "race-room", { userId: "bob" }));
+
+    await Promise.all([waitForOpen(wsA), waitForOpen(wsB)]);
+
+    // Both should get storage:init
+    const [msgA, msgB] = await Promise.all([
+      nextMessageOfType(wsA, "storage:init"),
+      nextMessageOfType(wsB, "storage:init"),
+    ]);
+    expect(msgA.root).toBeTruthy();
+    expect(msgB.root).toBeTruthy();
+
+    // initialStorage called only once
+    expect(callCount).toBe(1);
+  });
+
+  // --- Task #10: validation tests ---
+
+  it("rejects cursor with NaN", async () => {
+    server = new OpenBlocksServer();
+    await server.start(0);
+
+    const wsA = track(connectClient(server.port, "val-room", { userId: "alice" }));
+    const wsB = track(connectClient(server.port, "val-room", { userId: "bob" }));
+    await Promise.all([waitForOpen(wsA), waitForOpen(wsB)]);
+
+    // Skip presence messages
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Send invalid cursor — should be silently dropped
+    wsA.send(JSON.stringify({ type: "cursor:update", x: NaN, y: 10 }));
+    wsA.send(JSON.stringify({ type: "cursor:update", x: 10, y: Infinity }));
+
+    // Send valid cursor to flush
+    const cursorP = nextMessageOfType(wsB, "cursor:update");
+    wsA.send(JSON.stringify({ type: "cursor:update", x: 5, y: 5 }));
+    const cursor = await cursorP;
+    expect((cursor.cursor as any).x).toBe(5);
+  });
+
+  it("rejects ops with non-array", async () => {
+    server = new OpenBlocksServer();
+    await server.start(0);
+
+    const ws = track(connectClient(server.port, "val-ops", { userId: "alice" }));
+    await waitForOpen(ws);
+    await nextMessageOfType(ws, "storage:init");
+
+    // Init storage
+    const initP = nextMessageOfType(ws, "storage:init");
+    ws.send(JSON.stringify({
+      type: "storage:init",
+      root: { type: "LiveObject", data: { x: 0 } },
+    }));
+    await initP;
+
+    // Send invalid ops (not an array)
+    ws.send(JSON.stringify({ type: "storage:ops", ops: "not-array" }));
+    // Send empty ops
+    ws.send(JSON.stringify({ type: "storage:ops", ops: [] }));
+
+    // Send valid ops to verify server still works
+    const opsP = nextMessageOfType(ws, "storage:ops");
+    ws.send(JSON.stringify({
+      type: "storage:ops",
+      ops: [{ type: "set", path: [], key: "x", value: 1, clock: 1 }],
+    }));
+    const opsMsg = await opsP;
+    expect((opsMsg.ops as any[]).length).toBe(1);
+  });
 });

@@ -61,6 +61,12 @@ export class OpenBlocksServer {
     { roomId: string; connectionId: string }
   >();
 
+  // Map req → upgrade metadata (avoids `any` cast on req)
+  private reqMetadata = new WeakMap<
+    http.IncomingMessage,
+    { roomId: string; userId?: string; displayName?: string }
+  >();
+
   // Track raw sockets for clean shutdown
   private sockets = new Set<net.Socket>();
 
@@ -217,8 +223,8 @@ export class OpenBlocksServer {
       return;
     }
 
-    // Stash info for the connection handler via headers
-    (req as any).__ob = { roomId, userId, displayName };
+    // Stash info for the connection handler
+    this.reqMetadata.set(req, { roomId, userId, displayName });
 
     this.wss.handleUpgrade(req, socket, head, (ws) => {
       this.wss.emit("connection", ws, req);
@@ -228,11 +234,7 @@ export class OpenBlocksServer {
   // ── Connection lifecycle ─────────────────────────────────
 
   private handleConnection(ws: WebSocket, req: http.IncomingMessage): void {
-    const meta = (req as any).__ob as {
-      roomId: string;
-      userId?: string;
-      displayName?: string;
-    };
+    const meta = this.reqMetadata.get(req)!;
 
     const connectionId = crypto.randomUUID();
     const userId = meta.userId || connectionId;
@@ -261,30 +263,44 @@ export class OpenBlocksServer {
         JSON.stringify({ type: "storage:init", root: doc.serialize() })
       );
     } else if (this.initialStorage) {
-      // Seed room from callback if available
-      Promise.resolve(this.initialStorage(meta.roomId))
-        .then((data) => {
-          if (data && !room.storageInitialized) {
-            const doc = StorageDocument.deserialize(data);
-            room.initStorage(doc);
-            // Send to all connections in room (could have more by now)
+      // Guard: only first caller runs initialStorage; others wait
+      if (!room.storageInitPromise) {
+        room.storageInitPromise = Promise.resolve(this.initialStorage(meta.roomId))
+          .then((data) => {
+            if (data && !room.storageInitialized) {
+              const doc = StorageDocument.deserialize(data);
+              room.initStorage(doc);
+              room.broadcast(
+                JSON.stringify({ type: "storage:init", root: doc.serialize() })
+              );
+            } else if (!room.storageInitialized) {
+              room.broadcast(
+                JSON.stringify({ type: "storage:init", root: null })
+              );
+            }
+          })
+          .catch(() => {
             room.broadcast(
+              JSON.stringify({ type: "storage:init", root: null })
+            );
+          });
+      } else {
+        // Subsequent caller: wait for init, then send existing storage
+        room.storageInitPromise.then(() => {
+          if (room.storageInitialized) {
+            const doc = room.getStorageDocument()!;
+            room.send(
+              connectionId,
               JSON.stringify({ type: "storage:init", root: doc.serialize() })
             );
-          } else if (!room.storageInitialized) {
-            // No storage yet — tell client
+          } else {
             room.send(
               connectionId,
               JSON.stringify({ type: "storage:init", root: null })
             );
           }
-        })
-        .catch(() => {
-          room.send(
-            connectionId,
-            JSON.stringify({ type: "storage:init", root: null })
-          );
         });
+      }
     } else {
       // No storage — tell client
       room.send(
@@ -302,6 +318,9 @@ export class OpenBlocksServer {
     ws.on("message", (raw) => {
       this.handleMessage(meta.roomId, connectionId, raw);
     });
+
+    // ── Error handling — prevent unhandled 'error' from crashing ──
+    ws.on("error", () => {});
 
     // ── Close handling ──
     ws.on("close", () => {
@@ -334,6 +353,12 @@ export class OpenBlocksServer {
     if (parsed.type === "storage:init") {
       if (!room.storageInitialized) {
         const root = parsed.root as SerializedCrdt;
+        if (
+          root !== null &&
+          (typeof root !== "object" || !("type" in root))
+        ) {
+          return; // invalid root shape
+        }
         if (root) {
           const doc = StorageDocument.deserialize(root);
           room.initStorage(doc);
@@ -347,8 +372,10 @@ export class OpenBlocksServer {
     }
 
     if (parsed.type === "storage:ops") {
+      if (!Array.isArray(parsed.ops) || parsed.ops.length === 0) {
+        return; // invalid ops
+      }
       if (!room.storageInitialized) {
-        // Storage not initialized — drop ops
         return;
       }
       const ops = parsed.ops as StorageOp[];
@@ -365,6 +392,14 @@ export class OpenBlocksServer {
     }
 
     if (parsed.type === "cursor:update") {
+      if (
+        typeof parsed.x !== "number" ||
+        !isFinite(parsed.x) ||
+        typeof parsed.y !== "number" ||
+        !isFinite(parsed.y)
+      ) {
+        return; // invalid cursor data
+      }
       const cursor: CursorData = {
         userId: conn.user.userId,
         displayName: conn.user.displayName,
@@ -412,7 +447,6 @@ export class OpenBlocksServer {
   }
 
   private broadcastPresence(room: Room): void {
-    const users = room.getUsers();
-    room.broadcast(JSON.stringify({ type: "presence", users }));
+    room.broadcast(room.getPresenceMessage());
   }
 }

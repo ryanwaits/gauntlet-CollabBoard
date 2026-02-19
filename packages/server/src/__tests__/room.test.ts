@@ -108,4 +108,50 @@ describe("Room", () => {
     expect(users).toHaveLength(2);
     expect(users.map((u) => u.userId).sort()).toEqual(["u1", "u2"]);
   });
+
+  // --- Task #8: Presence message caching ---
+
+  it("presence message caches and invalidates on membership change", () => {
+    const room = new Room("test");
+    room.addConnection("c1", mockWs(), makeUser("u1"));
+
+    const msg1 = room.getPresenceMessage();
+    const msg2 = room.getPresenceMessage();
+    // Same string reference (cached)
+    expect(msg1).toBe(msg2);
+
+    // Verify content
+    const parsed = JSON.parse(msg1);
+    expect(parsed.type).toBe("presence");
+    expect(parsed.users).toHaveLength(1);
+
+    // Add connection invalidates cache
+    room.addConnection("c2", mockWs(), makeUser("u2"));
+    const msg3 = room.getPresenceMessage();
+    expect(msg3).not.toBe(msg1);
+    expect(JSON.parse(msg3).users).toHaveLength(2);
+
+    // Remove connection invalidates cache
+    room.removeConnection("c1");
+    const msg4 = room.getPresenceMessage();
+    expect(JSON.parse(msg4).users).toHaveLength(1);
+  });
+
+  // --- Task #12: broadcast survives ws.send throw ---
+
+  it("broadcast survives ws.send throw", () => {
+    const room = new Room("test");
+    const badWs = {
+      send: mock(() => { throw new Error("send failed"); }),
+      readyState: WebSocket.OPEN,
+    } as unknown as WebSocket;
+    const goodWs = mockWs();
+
+    room.addConnection("c1", badWs, makeUser("u1"));
+    room.addConnection("c2", goodWs, makeUser("u2"));
+
+    // Should not throw
+    room.broadcast("hello");
+    expect(goodWs.send).toHaveBeenCalledWith("hello");
+  });
 });
