@@ -1,12 +1,12 @@
 import { useCallback } from "react";
 import { useRoom } from "./room-context.js";
 
-export function useBroadcastEvent(): (
-  event: { type: string; [key: string]: unknown }
-) => void {
+export function useBroadcastEvent<
+  T extends { type: string } = { type: string; [key: string]: unknown }
+>(): (event: T) => void {
   const room = useRoom();
   return useCallback(
-    (event: { type: string; [key: string]: unknown }) => room.send(event),
+    (event: T) => room.send(event),
     [room]
   );
 }

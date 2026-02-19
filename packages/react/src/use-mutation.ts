@@ -13,7 +13,6 @@ export function useMutation<Args extends unknown[], R>(
   const room = useRoom();
   const storage = useStorageRoot();
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   return useMemo(
     () =>
       (...args: Args): R => {
