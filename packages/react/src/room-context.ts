@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   createElement,
+  type Context,
   type ReactNode,
 } from "react";
 import type { Room } from "@waits/openblocks-client";
@@ -12,7 +13,7 @@ import type { LiveObject } from "@waits/openblocks-client";
 import { useClient } from "./client-context.js";
 
 const RoomContext = createContext<Room | null>(null);
-const StorageContext = createContext<{ root: LiveObject } | null>(null);
+const StorageContext: Context<{ root: LiveObject } | null> = createContext<{ root: LiveObject } | null>(null);
 
 export { StorageContext };
 
@@ -32,7 +33,7 @@ export function RoomProvider({
   initialStorage,
   cursorThrottleMs,
   children,
-}: RoomProviderProps) {
+}: RoomProviderProps): ReactNode {
   const client = useClient();
   const [storage, setStorage] = useState<{ root: LiveObject } | null>(null);
 

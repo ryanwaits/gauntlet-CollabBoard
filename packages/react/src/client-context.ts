@@ -9,7 +9,7 @@ export interface OpenBlocksProviderProps {
   children: ReactNode;
 }
 
-export function OpenBlocksProvider({ client, children }: OpenBlocksProviderProps) {
+export function OpenBlocksProvider({ client, children }: OpenBlocksProviderProps): ReactNode {
   return createElement(ClientContext.Provider, { value: client }, children);
 }
 
