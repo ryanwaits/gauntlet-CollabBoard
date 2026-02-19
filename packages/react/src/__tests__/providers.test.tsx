@@ -126,6 +126,7 @@ function createDeferredPromise<T>() {
 function createMockRoom(overrides?: { getStorage?: () => Promise<{ root: any }> }) {
   return {
     roomId: "mock",
+    connect: mock(() => {}),
     subscribe: mock(() => mock(() => {})),
     getStatus: mock(() => "connected" as const),
     getSelf: mock(() => null),
@@ -192,13 +193,17 @@ describe("RoomProvider", () => {
     client = createMockClient();
   });
 
-  it("calls client.joinRoom on mount and client.leaveRoom on unmount", () => {
+  it("calls client.joinRoom on mount and client.leaveRoom on unmount", async () => {
     const { unmount } = render(createElement(Wrapper, { roomId: "room-a" }));
 
     expect(client.joinRoom).toHaveBeenCalledTimes(1);
     expect(client.joinRoom.mock.calls[0][0]).toBe("room-a");
 
     unmount();
+    // leaveRoom is deferred via setTimeout to survive React strict-mode remounts
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
     expect(client.leaveRoom).toHaveBeenCalledTimes(1);
     expect(client.leaveRoom.mock.calls[0][0]).toBe("room-a");
   });

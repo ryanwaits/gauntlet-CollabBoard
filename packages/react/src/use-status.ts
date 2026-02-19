@@ -2,6 +2,16 @@ import { useSyncExternalStore, useCallback, useEffect, useRef } from "react";
 import type { ConnectionStatus } from "@waits/openblocks-types";
 import { useRoom } from "./room-context.js";
 
+/**
+ * Returns the current WebSocket connection status of the room.
+ * Re-renders whenever the status changes.
+ *
+ * Possible values: `"connecting"` | `"connected"` | `"reconnecting"` | `"disconnected"`
+ *
+ * @example
+ * const status = useStatus();
+ * if (status !== "connected") return <Badge>{status}</Badge>;
+ */
 export function useStatus(): ConnectionStatus {
   const room = useRoom();
   return useSyncExternalStore(
@@ -11,6 +21,15 @@ export function useStatus(): ConnectionStatus {
   );
 }
 
+/**
+ * Fires a callback once whenever the connection drops from `"connected"`
+ * to `"reconnecting"`. Does not fire on intentional disconnect.
+ *
+ * @param callback - Stable reference recommended (internally stored in a ref)
+ *
+ * @example
+ * useLostConnectionListener(() => toast("Connection lost, reconnecting…"));
+ */
 export function useLostConnectionListener(
   callback: () => void
 ): void {

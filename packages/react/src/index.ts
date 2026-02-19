@@ -10,7 +10,7 @@ export { shallowEqual } from "./shallow-equal.js";
 // Presence + connection hooks
 export { useStatus, useLostConnectionListener } from "./use-status.js";
 export { useSelf } from "./use-self.js";
-export { useOthers, useOthersMapped } from "./use-others.js";
+export { useOthers, useOther, useOthersMapped } from "./use-others.js";
 
 // Storage hooks
 export { useStorage } from "./use-storage.js";

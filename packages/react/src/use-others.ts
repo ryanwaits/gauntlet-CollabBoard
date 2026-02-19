@@ -11,6 +11,14 @@ function shallowEqualArray(a: PresenceUser[], b: PresenceUser[]): boolean {
   return true;
 }
 
+/**
+ * Returns an array of all other users currently in the room.
+ * Re-renders only when the list of others changes (shallow-equal check).
+ *
+ * @example
+ * const others = useOthers();
+ * others.forEach(u => console.log(u.displayName));
+ */
 export function useOthers(): PresenceUser[] {
   const room = useRoom();
   const cache = useRef<PresenceUser[]>([]);
@@ -27,6 +35,55 @@ export function useOthers(): PresenceUser[] {
   );
 }
 
+/**
+ * Returns a single other user by userId, with an optional selector to
+ * extract a slice of their data. Returns `null` if the user is not found.
+ * Re-renders when the selected value changes (shallow-equal check).
+ *
+ * @param userId - The userId of the user to observe
+ * @param selector - Optional transform applied to the user before returning
+ *
+ * @example
+ * const name = useOther("abc", u => u.displayName); // string | null
+ * const user = useOther("abc"); // PresenceUser | null
+ */
+export function useOther<T = PresenceUser>(
+  userId: string,
+  selector?: (u: PresenceUser) => T
+): T | null {
+  const room = useRoom();
+  const selectorRef = useRef(selector);
+  selectorRef.current = selector;
+  const cache = useRef<T | null>(null);
+
+  return useSyncExternalStore(
+    useCallback((cb) => room.subscribe("presence", () => cb()), [room]),
+    useCallback(() => {
+      const user = room.getOthers().find((u) => u.userId === userId);
+      if (!user) {
+        cache.current = null;
+        return null;
+      }
+      const next = selectorRef.current
+        ? selectorRef.current(user)
+        : (user as unknown as T);
+      if (shallowEqual(cache.current, next)) return cache.current;
+      cache.current = next;
+      return next;
+    }, [room, userId]),
+    () => null
+  );
+}
+
+/**
+ * Returns a mapped array derived from all other users in the room.
+ * Re-renders only when the mapped output changes, not on every presence tick.
+ *
+ * @param selector - Transform applied to each user
+ *
+ * @example
+ * const names = useOthersMapped(u => u.displayName);
+ */
 export function useOthersMapped<T>(
   selector: (user: PresenceUser) => T
 ): T[] {

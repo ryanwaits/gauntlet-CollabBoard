@@ -8,7 +8,7 @@ const { OpenBlocksProvider } = await import("../client-context.js");
 const { RoomProvider } = await import("../room-context.js");
 const { useStatus, useLostConnectionListener } = await import("../use-status.js");
 const { useSelf } = await import("../use-self.js");
-const { useOthers, useOthersMapped } = await import("../use-others.js");
+const { useOthers, useOther, useOthersMapped } = await import("../use-others.js");
 
 let mockRoom: MockRoom;
 let client: any;
@@ -102,6 +102,30 @@ describe("useOthers", () => {
       mockRoom.emit("presence", []);
     });
     expect(result.current).toBe(first);
+  });
+});
+
+describe("useOther", () => {
+  it("returns user by userId", async () => {
+    setup();
+    const other = { userId: "u2", displayName: "Alice", color: "#f00", connectedAt: 0 };
+    mockRoom.setOthers([other]);
+    const { result } = renderHook(() => useOther("u2"), { wrapper });
+    expect(result.current).toEqual(other);
+  });
+
+  it("returns null when user not found", async () => {
+    setup();
+    const { result } = renderHook(() => useOther("nobody"), { wrapper });
+    expect(result.current).toBeNull();
+  });
+
+  it("applies selector", async () => {
+    setup();
+    const other = { userId: "u2", displayName: "Alice", color: "#f00", connectedAt: 0 };
+    mockRoom.setOthers([other]);
+    const { result } = renderHook(() => useOther("u2", (u) => u.displayName), { wrapper });
+    expect(result.current).toBe("Alice");
   });
 });
 
