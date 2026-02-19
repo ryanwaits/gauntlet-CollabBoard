@@ -12,6 +12,7 @@ export interface JoinRoomOptions {
   userId: string;
   displayName: string;
   cursorThrottleMs?: number;
+  initialStorage?: Record<string, unknown>;
 }
 
 export class OpenBlocksClient {
@@ -35,6 +36,7 @@ export class OpenBlocksClient {
       reconnect: this.config.reconnect,
       maxRetries: this.config.maxRetries,
       cursorThrottleMs: options.cursorThrottleMs,
+      initialStorage: options.initialStorage,
     });
 
     this.rooms.set(roomId, room);

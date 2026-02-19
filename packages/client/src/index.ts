@@ -19,3 +19,12 @@ export type {
   CursorUpdateMessage,
   ClientCursorMessage,
 } from "@waits/openblocks-types";
+
+// Re-export storage types
+export {
+  LiveObject,
+  LiveMap,
+  LiveList,
+  StorageDocument,
+  AbstractCrdt,
+} from "@waits/openblocks-storage";

@@ -2,7 +2,14 @@ import type {
   ConnectionStatus,
   PresenceUser,
   CursorData,
+  SerializedCrdt,
+  StorageOp,
 } from "@waits/openblocks-types";
+import {
+  StorageDocument,
+  LiveObject,
+  AbstractCrdt,
+} from "@waits/openblocks-storage";
 import { EventEmitter } from "./event-emitter.js";
 import { ConnectionManager } from "./connection.js";
 
@@ -15,6 +22,7 @@ export interface RoomConfig {
   reconnect?: boolean;
   maxRetries?: number;
   cursorThrottleMs?: number;
+  initialStorage?: Record<string, unknown>;
 }
 
 type RoomEvents = {
@@ -34,6 +42,7 @@ export class Room {
   private cursors = new Map<string, CursorData>();
   private batching = false;
   private batchQueue: string[] = [];
+  private batchStorageOps: StorageOp[] = [];
 
   // Throttle state for updateCursor
   private cursorThrottleMs: number;
@@ -41,10 +50,17 @@ export class Room {
   private pendingCursor: { x: number; y: number } | null = null;
   private lastCursorSend = 0;
 
+  // Storage state
+  private storageDoc: StorageDocument | null = null;
+  private storageResolvers: Array<(result: { root: LiveObject }) => void> = [];
+  private initialStorageData: Record<string, unknown> | undefined;
+  private sentStorageInit = false;
+
   constructor(config: RoomConfig) {
     this.roomId = config.roomId;
     this.userId = config.userId;
     this.cursorThrottleMs = config.cursorThrottleMs ?? 50;
+    this.initialStorageData = config.initialStorage;
 
     const wsScheme = config.serverUrl.replace(/^http/, "ws");
     const base = wsScheme.replace(/\/$/, "");
@@ -129,24 +145,86 @@ export class Room {
 
   batch(fn: () => void): void {
     this.batching = true;
+    this.batchStorageOps = [];
     try {
       fn();
     } finally {
       this.batching = false;
+      // Send queued regular messages
       for (const data of this.batchQueue) {
         this.connection.send(data);
       }
       this.batchQueue = [];
+      // Send batched storage ops as single message
+      if (this.batchStorageOps.length > 0) {
+        this.connection.send(
+          JSON.stringify({ type: "storage:ops", ops: this.batchStorageOps })
+        );
+        this.batchStorageOps = [];
+      }
     }
   }
 
-  subscribe<K extends keyof RoomEvents>(event: K, callback: RoomEvents[K]): () => void {
-    return this.emitter.on(event, callback);
+  // --- Storage API ---
+
+  async getStorage(): Promise<{ root: LiveObject }> {
+    if (this.storageDoc) {
+      return { root: this.storageDoc.getRoot() };
+    }
+    return new Promise((resolve) => {
+      this.storageResolvers.push(resolve);
+    });
   }
+
+  subscribe<K extends keyof RoomEvents>(event: K, callback: RoomEvents[K]): () => void;
+  subscribe(
+    target: AbstractCrdt,
+    callback: () => void,
+    opts?: { isDeep?: boolean }
+  ): () => void;
+  subscribe(
+    eventOrTarget: string | AbstractCrdt,
+    callback: ((...args: any[]) => void),
+    opts?: { isDeep?: boolean }
+  ): () => void {
+    if (typeof eventOrTarget === "string") {
+      return this.emitter.on(
+        eventOrTarget as keyof RoomEvents,
+        callback as RoomEvents[keyof RoomEvents]
+      );
+    }
+    // CRDT subscription
+    if (!this.storageDoc) {
+      throw new Error("Storage not initialized. Call getStorage() first.");
+    }
+    return this.storageDoc.subscribe(eventOrTarget, callback, opts);
+  }
+
+  // --- Internal ---
 
   private sendCursor(x: number, y: number): void {
     this.lastCursorSend = Date.now();
     this.send({ type: "cursor:update", x, y });
+  }
+
+  private initStorageFromDoc(doc: StorageDocument): void {
+    this.storageDoc = doc;
+    // Register op callback — local mutations auto-send
+    doc.setOnOpsGenerated((ops) => {
+      if (this.batching) {
+        this.batchStorageOps.push(...ops);
+      } else {
+        this.connection.send(
+          JSON.stringify({ type: "storage:ops", ops })
+        );
+      }
+    });
+    // Resolve pending getStorage() calls
+    const root = doc.getRoot();
+    for (const resolve of this.storageResolvers) {
+      resolve({ root });
+    }
+    this.storageResolvers = [];
   }
 
   private handleMessage(raw: string): void {
@@ -158,6 +236,50 @@ export class Room {
     }
 
     if (typeof parsed.type !== "string") return;
+
+    // --- Storage message interception (return early) ---
+
+    if (parsed.type === "storage:init") {
+      const root = parsed.root as SerializedCrdt | null;
+      if (root !== null) {
+        if (this.storageDoc && this.sentStorageInit) {
+          // Echo of our own init — skip to preserve local root references
+          this.sentStorageInit = false;
+        } else if (this.storageDoc) {
+          // Reconnection — re-hydrate in-place
+          this.storageDoc.applySnapshot(root);
+        } else {
+          const doc = StorageDocument.deserialize(root);
+          this.initStorageFromDoc(doc);
+        }
+      } else {
+        // Server has no storage — send initialStorage if available
+        if (this.initialStorageData && !this.storageDoc) {
+          const rootObj = new LiveObject(this.initialStorageData);
+          const doc = new StorageDocument(rootObj);
+          this.initStorageFromDoc(doc);
+          // Send to server
+          this.sentStorageInit = true;
+          this.connection.send(
+            JSON.stringify({ type: "storage:init", root: doc.serialize() })
+          );
+        }
+      }
+      return;
+    }
+
+    if (parsed.type === "storage:ops") {
+      if (this.storageDoc) {
+        const ops = parsed.ops as StorageOp[];
+        this.storageDoc.applyOps(ops);
+        if (typeof parsed.clock === "number") {
+          this.storageDoc._clock.merge(parsed.clock as number);
+        }
+      }
+      return;
+    }
+
+    // --- Regular message handling ---
 
     switch (parsed.type) {
       case "presence":
