@@ -24,7 +24,14 @@ export function useCursors(): Map<string, CursorData> {
         let same = true;
         for (const [k, v] of next) {
           const prev = cache.current.get(k);
-          if (!prev || prev.x !== v.x || prev.y !== v.y) {
+          if (
+            !prev ||
+            prev.x !== v.x ||
+            prev.y !== v.y ||
+            prev.viewportScale !== v.viewportScale ||
+            prev.viewportPos?.x !== v.viewportPos?.x ||
+            prev.viewportPos?.y !== v.viewportPos?.y
+          ) {
             same = false;
             break;
           }
@@ -46,8 +53,11 @@ export function useCursors(): Map<string, CursorData> {
  * const updateCursor = useUpdateCursor();
  * <div onMouseMove={e => updateCursor(e.clientX, e.clientY)} />
  */
-export function useUpdateCursor(): (x: number, y: number) => void {
+export function useUpdateCursor(): (x: number, y: number, viewportPos?: { x: number; y: number }, viewportScale?: number) => void {
   const room = useRoom();
-  // Stable ref — room.updateCursor is already bound
-  return useCallback((x: number, y: number) => room.updateCursor(x, y), [room]);
+  return useCallback(
+    (x: number, y: number, viewportPos?: { x: number; y: number }, viewportScale?: number) =>
+      room.updateCursor(x, y, viewportPos, viewportScale),
+    [room]
+  );
 }

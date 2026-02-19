@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useState, useEffect } from "react";
 import { useOthers, useSelf } from "@waits/openblocks-react";
 
 function getInitials(name: string): string {
@@ -13,10 +14,28 @@ function getInitials(name: string): string {
 
 const MAX_VISIBLE = 4;
 
-export function OnlineUsers() {
+interface OnlineUsersProps {
+  followingUserId?: string | null;
+  onFollow?: (userId: string | null) => void;
+}
+
+export function OnlineUsers({ followingUserId, onFollow }: OnlineUsersProps) {
   const others = useOthers();
   const self = useSelf();
   const onlineUsers = self ? [self, ...others] : others;
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!openDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpenDropdown(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [openDropdown]);
 
   if (onlineUsers.length === 0) return null;
 
@@ -24,17 +43,56 @@ export function OnlineUsers() {
   const overflow = onlineUsers.length - MAX_VISIBLE;
 
   return (
-    <div className="flex -space-x-2">
-      {visible.map((user) => (
-        <div
-          key={user.userId}
-          className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-xs font-medium text-white shadow-md"
-          style={{ backgroundColor: user.color }}
-          title={user.displayName}
-        >
-          {getInitials(user.displayName)}
-        </div>
-      ))}
+    <div className="flex -space-x-2" ref={dropdownRef}>
+      {visible.map((user) => {
+        const isSelf = user.userId === self?.userId;
+        const isFollowed = followingUserId === user.userId;
+        const isDropdownOpen = openDropdown === user.userId;
+
+        return (
+          <div key={user.userId} className="relative">
+            <div
+              className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-xs font-medium text-white shadow-md ${
+                isFollowed ? "border-blue-400 ring-2 ring-blue-400" : "border-white"
+              } ${!isSelf && onFollow ? "cursor-pointer hover:opacity-90" : ""}`}
+              style={{ backgroundColor: user.color }}
+              title={user.displayName}
+              onClick={() => {
+                if (isSelf || !onFollow) return;
+                setOpenDropdown(isDropdownOpen ? null : user.userId);
+              }}
+            >
+              {getInitials(user.displayName)}
+            </div>
+
+            {isDropdownOpen && !isSelf && onFollow && (
+              <div className="absolute right-0 top-10 z-50 min-w-[140px] rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+                {isFollowed ? (
+                  <button
+                    className="w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100"
+                    onClick={() => {
+                      onFollow(null);
+                      setOpenDropdown(null);
+                    }}
+                  >
+                    Stop following
+                  </button>
+                ) : (
+                  <button
+                    className="w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100"
+                    onClick={() => {
+                      onFollow(user.userId);
+                      setOpenDropdown(null);
+                    }}
+                  >
+                    Follow {user.displayName.split(" ")[0]}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
       {overflow > 0 && (
         <div className="flex h-8 w-8 cursor-default items-center justify-center rounded-full border-2 border-white bg-slate-100 text-xs font-medium text-slate-500 shadow-md hover:bg-slate-200">
           +{overflow}

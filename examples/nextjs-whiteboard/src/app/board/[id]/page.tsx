@@ -24,8 +24,9 @@ import type { BoardObject, ToolMode, Frame } from "@/types/board";
 import { useFrameStore } from "@/lib/store/frame-store";
 import { useLineDrawing } from "@/hooks/use-line-drawing";
 import { useUndoRedo } from "@/hooks/use-undo-redo";
+import { useFollowUser } from "@/hooks/use-follow-user";
 import { AICommandBar } from "@/components/ai/ai-command-bar";
-import { OpenBlocksProvider, RoomProvider, useStatus, useSelf } from "@waits/openblocks-react";
+import { OpenBlocksProvider, RoomProvider, useStatus, useSelf, useOthers } from "@waits/openblocks-react";
 import { client, buildInitialStorage } from "@/lib/sync/client";
 import { useOpenBlocksSync } from "@/lib/sync/use-openblocks-sync";
 import { useBoardMutations } from "@/lib/sync/use-board-mutations";
@@ -75,6 +76,7 @@ export default function BoardPage() {
 function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userId: string; displayName: string }) {
   const { objects, selectedIds, setSelected, setSelectedIds, connectionIndex } = useBoardStore();
   const self = useSelf();
+  const others = useOthers();
   const status = useStatus();
   const viewportScale = useViewportStore((s) => s.scale);
   const viewportPos = useViewportStore((s) => s.pos);
@@ -83,11 +85,13 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
   const [editingId, setEditingId] = useState<string | null>(null);
   const [stageMousePos, setStageMousePos] = useState<{ x: number; y: number } | null>(null);
   const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [followingUserId, setFollowingUserId] = useState<string | null>(null);
   const [aiOpen, setAiOpen] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem(`ai-open:${roomId}`) === "true";
   });
   const canvasRef = useRef<BoardCanvasHandle>(null);
+  const lastCursorPosRef = useRef<{ x: number; y: number } | null>(null);
   const resizeOriginRef = useRef<{ x: number; y: number } | null>(null);
   const multiDragStartRef = useRef<Map<string, { x: number; y: number }> | null>(null);
   const clipboardRef = useRef<BoardObject[]>([]);
@@ -106,12 +110,19 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
   useOpenBlocksSync();
   const mutations = useBoardMutations();
   const { recordAction, undo, redo } = useUndoRedo(mutations);
+  const applyFollowViewport = useCallback(
+    (pos: { x: number; y: number }, scale: number) => canvasRef.current?.setViewport(pos, scale),
+    []
+  );
+  const exitFollow = useCallback(() => setFollowingUserId(null), []);
+  useFollowUser(followingUserId, exitFollow, applyFollowViewport);
 
   const handleStageMouseMove = useCallback(
     (relativePointerPos: { x: number; y: number } | null) => {
       if (!relativePointerPos) return;
       setStageMousePos(relativePointerPos);
       lineDrawing.setCursorPos(relativePointerPos);
+      lastCursorPosRef.current = relativePointerPos;
       mutations.updateCursor(relativePointerPos.x, relativePointerPos.y);
     },
     [mutations, lineDrawing.setCursorPos],
@@ -120,6 +131,32 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
   const handleStageMouseLeave = useCallback(() => {
     setStageMousePos(null);
   }, []);
+
+  // Broadcast viewport on pan/zoom — always, even without prior cursor move
+  useEffect(() => {
+    return useViewportStore.subscribe(() => {
+      const { pos: vpPos, scale } = useViewportStore.getState();
+      const cursorPos = lastCursorPosRef.current ?? {
+        x: (window.innerWidth / 2 - vpPos.x) / scale,
+        y: (window.innerHeight / 2 - vpPos.y) / scale,
+      };
+      mutations.updateCursor(cursorPos.x, cursorPos.y);
+    });
+  }, [mutations]);
+
+  // Re-broadcast cursor+viewport when a new user joins so they get our current state immediately
+  const prevOthersLengthRef = useRef(others.length);
+  useEffect(() => {
+    if (others.length > prevOthersLengthRef.current) {
+      const { pos: vpPos, scale } = useViewportStore.getState();
+      const cursorPos = lastCursorPosRef.current ?? {
+        x: (window.innerWidth / 2 - vpPos.x) / scale,
+        y: (window.innerHeight / 2 - vpPos.y) / scale,
+      };
+      mutations.updateCursor(cursorPos.x, cursorPos.y);
+    }
+    prevOthersLengthRef.current = others.length;
+  }, [others, mutations]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     setMousePos({ x: e.clientX, y: e.clientY });
@@ -525,6 +562,7 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
       }
       if (e.key === "Escape") {
         (document.activeElement as HTMLElement)?.blur?.();
+        if (followingUserId) { setFollowingUserId(null); return; }
         if (lineDrawing.drawingState.isDrawing) { lineDrawing.cancel(); return; }
         if (editingId) { setEditingId(null); }
         else if (activeTool === "line" || CREATION_TOOLS.includes(activeTool)) { setActiveTool("select"); }
@@ -541,7 +579,7 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [handleDelete, duplicateObjects, editingId, selectedId, selectedIds, objects, setSelected, activeTool, lineDrawing, finalizeLineDrawing, undo, redo]);
+  }, [handleDelete, duplicateObjects, editingId, selectedId, selectedIds, objects, setSelected, activeTool, lineDrawing, finalizeLineDrawing, undo, redo, followingUserId]);
 
   const handleSelectionRect = useCallback(
     (rect: { x: number; y: number; width: number; height: number } | null) => { setSelectionRect(rect); },
@@ -618,7 +656,22 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
             Reconnecting...
           </span>
         )}
-        <OnlineUsers />
+        {followingUserId && (() => {
+          const followedUser = [...(self ? [self] : []), ...others].find(u => u.userId === followingUserId);
+          return followedUser ? (
+            <span className="flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 shadow-sm">
+              Following {followedUser.displayName.split(" ")[0]}
+              <button
+                className="ml-0.5 rounded-full hover:text-blue-900"
+                onClick={() => setFollowingUserId(null)}
+                aria-label="Stop following"
+              >
+                ✕
+              </button>
+            </span>
+          ) : null;
+        })()}
+        <OnlineUsers followingUserId={followingUserId} onFollow={setFollowingUserId} />
       </div>
 
       {/* Canvas */}

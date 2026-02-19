@@ -6,6 +6,7 @@ import type { LiveObject } from "@waits/openblocks-client";
 import { useRoom, useStorageRoot, useUpdateCursor } from "@waits/openblocks-react";
 import type { BoardObject, Frame } from "@/types/board";
 import { frameOriginX, FRAME_ORIGIN_Y, BOARD_WIDTH, BOARD_HEIGHT } from "@/lib/geometry/frames";
+import { useViewportStore } from "@/lib/store/viewport-store";
 
 function boardObjectToLiveData(obj: BoardObject): Record<string, unknown> {
   const data: Record<string, unknown> = { ...obj };
@@ -150,7 +151,10 @@ export function useBoardMutations() {
   );
 
   const updateCursor = useCallback(
-    (x: number, y: number) => updateCursorFn(x, y),
+    (x: number, y: number) => {
+      const { pos, scale } = useViewportStore.getState();
+      updateCursorFn(x, y, pos, scale);
+    },
     [updateCursorFn]
   );
 

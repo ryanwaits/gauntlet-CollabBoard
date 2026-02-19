@@ -400,6 +400,10 @@ export class OpenBlocksServer {
       ) {
         return; // invalid cursor data
       }
+      const vp = parsed.viewportPos as { x: number; y: number } | undefined;
+      const vs = parsed.viewportScale as number | undefined;
+      const isValidVp = vp && typeof vp.x === "number" && isFinite(vp.x) && typeof vp.y === "number" && isFinite(vp.y);
+      const isValidVs = typeof vs === "number" && isFinite(vs);
       const cursor: CursorData = {
         userId: conn.user.userId,
         displayName: conn.user.displayName,
@@ -407,6 +411,8 @@ export class OpenBlocksServer {
         x: parsed.x as number,
         y: parsed.y as number,
         lastUpdate: Date.now(),
+        ...(isValidVp && { viewportPos: vp }),
+        ...(isValidVs && { viewportScale: vs }),
       };
       room.broadcast(
         JSON.stringify({ type: "cursor:update", cursor }),

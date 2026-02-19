@@ -47,7 +47,7 @@ export class Room {
   // Throttle state for updateCursor
   private cursorThrottleMs: number;
   private cursorTimer: ReturnType<typeof setTimeout> | null = null;
-  private pendingCursor: { x: number; y: number } | null = null;
+  private pendingCursor: { x: number; y: number; viewportPos?: { x: number; y: number }; viewportScale?: number } | null = null;
   private lastCursorSend = 0;
 
   // Storage state
@@ -137,19 +137,20 @@ export class Room {
     }
   }
 
-  updateCursor(x: number, y: number): void {
+  updateCursor(x: number, y: number, viewportPos?: { x: number; y: number }, viewportScale?: number): void {
     const now = Date.now();
     const elapsed = now - this.lastCursorSend;
 
     if (elapsed >= this.cursorThrottleMs) {
-      this.sendCursor(x, y);
+      this.sendCursor(x, y, viewportPos, viewportScale);
     } else {
-      this.pendingCursor = { x, y };
+      this.pendingCursor = { x, y, viewportPos, viewportScale };
       if (!this.cursorTimer) {
         this.cursorTimer = setTimeout(() => {
           this.cursorTimer = null;
           if (this.pendingCursor) {
-            this.sendCursor(this.pendingCursor.x, this.pendingCursor.y);
+            const { x: px, y: py, viewportPos: pvp, viewportScale: pvs } = this.pendingCursor;
+            this.sendCursor(px, py, pvp, pvs);
             this.pendingCursor = null;
           }
         }, this.cursorThrottleMs - elapsed);
@@ -217,9 +218,12 @@ export class Room {
 
   // --- Internal ---
 
-  private sendCursor(x: number, y: number): void {
+  private sendCursor(x: number, y: number, viewportPos?: { x: number; y: number }, viewportScale?: number): void {
     this.lastCursorSend = Date.now();
-    this.send({ type: "cursor:update", x, y });
+    const msg: Record<string, unknown> = { type: "cursor:update", x, y };
+    if (viewportPos) msg.viewportPos = viewportPos;
+    if (viewportScale !== undefined) msg.viewportScale = viewportScale;
+    this.send(msg as { type: string; [key: string]: unknown });
   }
 
   private initStorageFromDoc(doc: StorageDocument): void {
