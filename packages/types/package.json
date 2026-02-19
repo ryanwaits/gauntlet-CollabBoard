@@ -1,0 +1,20 @@
+{
+  "name": "@waits/openblocks-types",
+  "version": "0.0.1",
+  "description": "Shared types for OpenBlocks real-time collaboration",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}
