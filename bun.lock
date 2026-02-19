@@ -18,6 +18,7 @@
         "@waits/openblocks-server": "workspace:*",
         "@waits/openblocks-storage": "workspace:*",
         "@waits/openblocks-types": "workspace:*",
+        "@waits/openblocks-ui": "workspace:*",
         "next": "16.1.6",
         "react": "19.2.3",
         "react-dom": "19.2.3",
@@ -138,6 +139,25 @@
       "version": "0.0.1",
       "devDependencies": {
         "typescript": "^5",
+      },
+    },
+    "packages/ui": {
+      "name": "@waits/openblocks-ui",
+      "version": "0.0.1",
+      "dependencies": {
+        "@waits/openblocks-react": "workspace:*",
+        "@waits/openblocks-types": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        "react": "^19",
+        "react-dom": "^19",
+        "typescript": "^5",
+      },
+      "peerDependencies": {
+        "react": ">=18",
+        "react-dom": ">=18",
       },
     },
   },
@@ -751,6 +771,8 @@
     "@waits/openblocks-storage": ["@waits/openblocks-storage@workspace:packages/storage"],
 
     "@waits/openblocks-types": ["@waits/openblocks-types@workspace:packages/types"],
+
+    "@waits/openblocks-ui": ["@waits/openblocks-ui@workspace:packages/ui"],
 
     "accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "^3.0.0", "negotiator": "^1.0.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
 
