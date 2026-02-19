@@ -1,0 +1,16 @@
+export { OpenBlocksServer } from "./server.js";
+export { Room } from "./room.js";
+export { RoomManager } from "./room-manager.js";
+
+export type {
+  PresenceUser,
+  CursorData,
+  ConnectionStatus,
+  AuthHandler,
+  RoomConfig,
+  ServerConfig,
+  OnMessageHandler,
+  OnJoinHandler,
+  OnLeaveHandler,
+  Connection,
+} from "./types.js";
