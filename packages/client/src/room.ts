@@ -4,14 +4,17 @@ import type {
   CursorData,
   SerializedCrdt,
   StorageOp,
+  OnlineStatus,
 } from "@waits/openblocks-types";
 import {
   StorageDocument,
   LiveObject,
   AbstractCrdt,
+  HistoryManager,
 } from "@waits/openblocks-storage";
 import { EventEmitter } from "./event-emitter.js";
 import { ConnectionManager } from "./connection.js";
+import { ActivityTracker } from "./activity-tracker.js";
 
 export interface RoomConfig {
   serverUrl: string;
@@ -23,6 +26,8 @@ export interface RoomConfig {
   maxRetries?: number;
   cursorThrottleMs?: number;
   initialStorage?: Record<string, unknown>;
+  inactivityTime?: number;
+  offlineInactivityTime?: number;
 }
 
 type RoomEvents = {
@@ -30,6 +35,7 @@ type RoomEvents = {
   presence: (users: PresenceUser[]) => void;
   cursors: (cursors: Map<string, CursorData>) => void;
   message: (message: Record<string, unknown>) => void;
+  liveState: (key: string, value: unknown) => void;
 };
 
 export class Room {
@@ -56,6 +62,13 @@ export class Room {
   private initialStorageData: Record<string, unknown> | undefined;
   private sentStorageInit = false;
 
+  // Activity tracking
+  private activityTracker: ActivityTracker;
+
+  // Live state
+  private liveStates = new Map<string, { value: unknown; timestamp: number; userId: string }>();
+  private liveStateSubscribers = new Map<string, Set<() => void>>();
+
   constructor(config: RoomConfig) {
     this.roomId = config.roomId;
     this.userId = config.userId;
@@ -65,6 +78,11 @@ export class Room {
     const wsScheme = config.serverUrl.replace(/^http/, "ws");
     const base = wsScheme.replace(/\/$/, "");
     const url = `${base}/rooms/${config.roomId}?userId=${encodeURIComponent(config.userId)}&displayName=${encodeURIComponent(config.displayName)}`;
+
+    this.activityTracker = new ActivityTracker({
+      inactivityTime: config.inactivityTime,
+      offlineInactivityTime: config.offlineInactivityTime,
+    });
 
     this.connection = new ConnectionManager({
       url,
@@ -97,9 +115,17 @@ export class Room {
 
   connect(): void {
     this.connection.connect();
+    this.activityTracker.start((status: OnlineStatus) => {
+      this.send({
+        type: "presence:update",
+        onlineStatus: status,
+        isIdle: status === "away",
+      });
+    });
   }
 
   disconnect(): void {
+    this.activityTracker.stop();
     if (this.cursorTimer) {
       clearTimeout(this.cursorTimer);
       this.cursorTimer = null;
@@ -126,6 +152,82 @@ export class Room {
 
   getCursors(): Map<string, CursorData> {
     return new Map(this.cursors);
+  }
+
+  updatePresence(data: {
+    location?: string;
+    metadata?: Record<string, unknown>;
+    onlineStatus?: OnlineStatus;
+  }): void {
+    this.send({ type: "presence:update", ...data });
+  }
+
+  getOthersOnLocation(locationId: string): PresenceUser[] {
+    return this.presence.filter(
+      (u) => u.userId !== this.userId && u.location === locationId
+    );
+  }
+
+  // --- Live State API ---
+
+  setLiveState(key: string, value: unknown, opts?: { merge?: boolean }): void {
+    const timestamp = Date.now();
+    this.liveStates.set(key, { value, timestamp, userId: this.userId });
+    this.notifyLiveStateSubscribers(key);
+    this.send({
+      type: "state:update",
+      key,
+      value,
+      timestamp,
+      ...(opts?.merge && { merge: true }),
+    });
+  }
+
+  getLiveState(key: string): unknown | undefined {
+    return this.liveStates.get(key)?.value;
+  }
+
+  getAllLiveStates(): Map<string, { value: unknown; timestamp: number; userId: string }> {
+    return new Map(this.liveStates);
+  }
+
+  subscribeLiveState(key: string, cb: () => void): () => void {
+    let subs = this.liveStateSubscribers.get(key);
+    if (!subs) {
+      subs = new Set();
+      this.liveStateSubscribers.set(key, subs);
+    }
+    subs.add(cb);
+    return () => {
+      subs!.delete(cb);
+      if (subs!.size === 0) {
+        this.liveStateSubscribers.delete(key);
+      }
+    };
+  }
+
+  // --- Undo/Redo ---
+
+  undo(): void {
+    if (!this.storageDoc) return;
+    const history = this.storageDoc.getHistory();
+    const ops = history.undo();
+    if (ops) {
+      this.storageDoc.applyLocalOps(ops);
+    }
+  }
+
+  redo(): void {
+    if (!this.storageDoc) return;
+    const history = this.storageDoc.getHistory();
+    const ops = history.redo();
+    if (ops) {
+      this.storageDoc.applyLocalOps(ops);
+    }
+  }
+
+  getHistory(): HistoryManager | null {
+    return this.storageDoc?.getHistory() ?? null;
   }
 
   send(message: { type: string; [key: string]: unknown }): void {
@@ -161,10 +263,13 @@ export class Room {
   batch<T>(fn: () => T): T {
     this.batching = true;
     this.batchStorageOps = [];
+    const history = this.storageDoc?.getHistory();
+    history?.startBatch();
     try {
       const result = fn();
       return result;
     } finally {
+      history?.endBatch();
       this.batching = false;
       // Send queued regular messages
       for (const data of this.batchQueue) {
@@ -246,6 +351,15 @@ export class Room {
     this.storageResolvers = [];
   }
 
+  private notifyLiveStateSubscribers(key: string): void {
+    const subs = this.liveStateSubscribers.get(key);
+    if (subs) {
+      for (const cb of subs) {
+        cb();
+      }
+    }
+  }
+
   private handleMessage(raw: string): void {
     let parsed: Record<string, unknown>;
     try {
@@ -294,6 +408,33 @@ export class Room {
         if (typeof parsed.clock === "number") {
           this.storageDoc._clock.merge(parsed.clock as number);
         }
+      }
+      return;
+    }
+
+    // --- Live state message handling ---
+
+    if (parsed.type === "state:init") {
+      const states = parsed.states as Record<string, { value: unknown; timestamp: number; userId: string }>;
+      if (states) {
+        for (const [key, entry] of Object.entries(states)) {
+          this.liveStates.set(key, entry);
+          this.notifyLiveStateSubscribers(key);
+        }
+      }
+      return;
+    }
+
+    if (parsed.type === "state:update") {
+      const key = parsed.key as string;
+      const value = parsed.value;
+      const timestamp = parsed.timestamp as number;
+      const userId = parsed.userId as string;
+      const existing = this.liveStates.get(key);
+      if (!existing || timestamp >= existing.timestamp) {
+        this.liveStates.set(key, { value, timestamp, userId });
+        this.notifyLiveStateSubscribers(key);
+        this.emitter.emit("liveState", key, value);
       }
       return;
     }

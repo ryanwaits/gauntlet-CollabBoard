@@ -8,6 +8,7 @@ export interface ConnectionConfig {
   maxRetries?: number;
   baseDelay?: number;
   maxDelay?: number;
+  heartbeatIntervalMs?: number;
 }
 
 type ConnectionEvents = {
@@ -21,6 +22,7 @@ export class ConnectionManager extends EventEmitter<ConnectionEvents> {
   private status: ConnectionStatus = "disconnected";
   private attempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private intentionalClose = false;
 
   private readonly url: string;
@@ -29,6 +31,7 @@ export class ConnectionManager extends EventEmitter<ConnectionEvents> {
   private readonly maxRetries: number;
   private readonly baseDelay: number;
   private readonly maxDelay: number;
+  private readonly heartbeatIntervalMs: number;
 
   constructor(config: ConnectionConfig) {
     super();
@@ -38,6 +41,7 @@ export class ConnectionManager extends EventEmitter<ConnectionEvents> {
     this.maxRetries = config.maxRetries ?? 10;
     this.baseDelay = config.baseDelay ?? 250;
     this.maxDelay = config.maxDelay ?? 30_000;
+    this.heartbeatIntervalMs = config.heartbeatIntervalMs ?? 30_000;
   }
 
   connect(): void {
@@ -50,6 +54,7 @@ export class ConnectionManager extends EventEmitter<ConnectionEvents> {
   disconnect(): void {
     this.intentionalClose = true;
     this.clearReconnectTimer();
+    this.stopHeartbeat();
     this.attempt = 0;
     if (this.ws) {
       this.ws.onopen = null;
@@ -85,6 +90,7 @@ export class ConnectionManager extends EventEmitter<ConnectionEvents> {
     this.ws.onopen = () => {
       this.attempt = 0;
       this.setStatus("connected");
+      this.startHeartbeat();
     };
 
     this.ws.onmessage = (event: MessageEvent) => {
@@ -97,6 +103,7 @@ export class ConnectionManager extends EventEmitter<ConnectionEvents> {
 
     this.ws.onclose = () => {
       this.ws = null;
+      this.stopHeartbeat();
       if (this.intentionalClose) return;
       this.handleReconnect();
     };
@@ -129,6 +136,20 @@ export class ConnectionManager extends EventEmitter<ConnectionEvents> {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
+    }
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      this.send(JSON.stringify({ type: "heartbeat" }));
+    }, this.heartbeatIntervalMs);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
     }
   }
 }
