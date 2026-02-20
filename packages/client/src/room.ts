@@ -36,6 +36,7 @@ type RoomEvents = {
   cursors: (cursors: Map<string, CursorData>) => void;
   message: (message: Record<string, unknown>) => void;
   liveState: (key: string, value: unknown) => void;
+  error: (error: Error) => void;
 };
 
 export class Room {
@@ -110,6 +111,10 @@ export class Room {
 
     this.connection.on("message", (raw) => {
       this.handleMessage(raw);
+    });
+
+    this.connection.on("error", () => {
+      this.emitter.emit("error", new Error("WebSocket error"));
     });
   }
 

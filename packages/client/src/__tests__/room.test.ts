@@ -250,6 +250,25 @@ describe("Room", () => {
     expect(ws2.send).toHaveBeenCalledTimes(1);
   });
 
+  // --- Error event forwarding ---
+
+  it("emits 'error' event when WebSocket errors", async () => {
+    const cb = mock(() => {});
+    const room = createRoom();
+    room.subscribe("error", cb);
+    room.connect();
+    await new Promise((r) => queueMicrotask(r));
+
+    // Trigger onerror on the WebSocket
+    const ws = MockWebSocket.instances[0];
+    ws.onerror?.(new Event("error"));
+
+    expect(cb).toHaveBeenCalledTimes(1);
+    const err = cb.mock.calls[0][0];
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).toBe("WebSocket error");
+  });
+
   // --- Task #13: Validate cursorThrottleMs ---
 
   it("cursorThrottleMs clamped to minimum 1", () => {
