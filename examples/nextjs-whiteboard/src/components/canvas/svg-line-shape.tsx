@@ -91,7 +91,15 @@ export const SvgLineShape = memo(function SvgLineShape({
     const handleMove = (ev: PointerEvent) => {
       const d = bodyDragRef.current;
       if (!d) return;
-      // Body drag applies delta on pointerup, not during move
+      const dx = (ev.clientX - d.startClientX) / d.scale;
+      const dy = (ev.clientY - d.startClientY) / d.scale;
+      const newPoints = d.startPoints.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+      const bounds = computeLineBounds(newPoints);
+      (onLineUpdate ?? onLineUpdateEnd!)(id, {
+        points: newPoints,
+        x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height,
+        start_object_id: null, end_object_id: null,
+      });
     };
     const handleUp = (ev: PointerEvent) => {
       const d = bodyDragRef.current;
@@ -114,7 +122,7 @@ export const SvgLineShape = memo(function SvgLineShape({
     };
     window.addEventListener("pointermove", handleMove);
     window.addEventListener("pointerup", handleUp);
-  }, [id, onSelect, canDragBody, object.points, onLineUpdateEnd]);
+  }, [id, onSelect, canDragBody, object.points, onLineUpdate, onLineUpdateEnd]);
 
   // --- Endpoint drag ---
   const handleEndpointPointerDown = useCallback((pointIndex: number, e: React.PointerEvent) => {

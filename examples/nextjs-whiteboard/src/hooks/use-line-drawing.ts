@@ -87,13 +87,16 @@ export function useLineDrawing(): UseLineDrawingReturn {
         return null;
       }
 
-      // Check minimum distance
-      const first = points[0];
-      const last = points[points.length - 1];
-      const dist = Math.sqrt((last.x - first.x) ** 2 + (last.y - first.y) ** 2);
-      if (dist < 5) {
-        updateState(INITIAL_STATE);
-        return null;
+      // Check minimum distance — only for simple 2-point lines.
+      // Multi-point lines that close back to the start (e.g. squares) are valid.
+      if (points.length === 2) {
+        const first = points[0];
+        const last = points[1];
+        const dist = Math.sqrt((last.x - first.x) ** 2 + (last.y - first.y) ** 2);
+        if (dist < 5) {
+          updateState(INITIAL_STATE);
+          return null;
+        }
       }
 
       const bounds = computeLineBounds(points);
