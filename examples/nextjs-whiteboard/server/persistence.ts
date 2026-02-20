@@ -64,12 +64,45 @@ async function fetchBoardFrames(boardUUID: string): Promise<Frame[]> {
   }
 }
 
+/** Normalize objects so every row has the same keys (PostgREST PGRST102). */
+function normalizeForUpsert(objects: BoardObject[]): Record<string, unknown>[] {
+  return objects.map((obj) => ({
+    id: obj.id,
+    board_id: obj.board_id,
+    type: obj.type,
+    x: obj.x,
+    y: obj.y,
+    width: obj.width,
+    height: obj.height,
+    color: obj.color,
+    text: obj.text,
+    z_index: obj.z_index,
+    created_by: obj.created_by,
+    created_by_name: obj.created_by_name ?? null,
+    updated_at: obj.updated_at,
+    font_weight: obj.font_weight ?? null,
+    font_style: obj.font_style ?? null,
+    text_decoration: obj.text_decoration ?? null,
+    text_color: obj.text_color ?? null,
+    text_align: obj.text_align ?? null,
+    points: obj.points ?? null,
+    stroke_color: obj.stroke_color ?? null,
+    stroke_width: obj.stroke_width ?? null,
+    start_arrow: obj.start_arrow ?? null,
+    end_arrow: obj.end_arrow ?? null,
+    start_object_id: obj.start_object_id ?? null,
+    end_object_id: obj.end_object_id ?? null,
+    label: obj.label ?? null,
+    rotation: obj.rotation ?? null,
+  }));
+}
+
 async function persistObjects(objects: BoardObject[]): Promise<void> {
   if (objects.length === 0) return;
   const res = await fetch(`${SUPABASE_URL}/rest/v1/board_objects`, {
     method: "POST",
     headers: { ...supabaseHeaders(), Prefer: "resolution=merge-duplicates" },
-    body: JSON.stringify(objects),
+    body: JSON.stringify(normalizeForUpsert(objects)),
   });
   if (!res.ok) {
     console.error(`persistObjects failed (${res.status}):`, await res.text());
