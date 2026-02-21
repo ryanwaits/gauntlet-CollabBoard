@@ -12,3 +12,5 @@ export { AvatarStack } from "./avatar-stack.js";
 export type { AvatarStackProps } from "./avatar-stack.js";
 export { ConnectionBadge } from "./connection-badge.js";
 export type { ConnectionBadgeProps } from "./connection-badge.js";
+export { CollabPills } from "./collab-pills.js";
+export type { CollabPillsProps } from "./collab-pills.js";
