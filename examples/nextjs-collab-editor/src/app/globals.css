@@ -1,0 +1,160 @@
+@import "tailwindcss";
+@source "../../../../packages/ui/src";
+@source "../../../../packages/react-tiptap/src";
+
+/* ── Collaborative cursor styles (y-prosemirror) ── */
+
+/* Prevent first-child cursor from collapsing margin */
+.ProseMirror > .ProseMirror-yjs-cursor:first-child {
+  margin-top: 16px;
+}
+
+/* Thin caret line — color set via inline border-color by y-prosemirror */
+.ProseMirror-yjs-cursor {
+  position: relative;
+  margin-left: -1px;
+  margin-right: -1px;
+  border-left: 2px solid;
+  border-right: none;
+  word-break: normal;
+  pointer-events: none;
+}
+
+/* Floating name label above the caret */
+.ProseMirror-yjs-cursor > div {
+  position: absolute;
+  top: -1.6em;
+  left: -1px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-style: normal;
+  line-height: 1;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Remote selection highlight — uses inline style for background-color with opacity */
+.ProseMirror-yjs-selection {
+  /* y-prosemirror sets background-color inline with hex opacity */
+}
+
+/* ── ProseMirror prose styles ── */
+
+.prose-editor .ProseMirror {
+  outline: none;
+  min-height: 60vh;
+}
+
+.prose-editor .ProseMirror > * + * {
+  margin-top: 0.75em;
+}
+
+/* Headings */
+.prose-editor .ProseMirror h1 {
+  font-size: 2em;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+.prose-editor .ProseMirror h2 {
+  font-size: 1.5em;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 1.25em;
+  margin-bottom: 0.4em;
+}
+
+.prose-editor .ProseMirror h3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: 1em;
+  margin-bottom: 0.3em;
+}
+
+/* Paragraphs */
+.prose-editor .ProseMirror p {
+  line-height: 1.7;
+}
+
+/* Blockquote */
+.prose-editor .ProseMirror blockquote {
+  border-left: 3px solid #E5E5E5;
+  padding-left: 1em;
+  color: #666;
+  font-style: italic;
+}
+
+/* Lists */
+.prose-editor .ProseMirror ul {
+  list-style-type: disc;
+  padding-left: 1.5em;
+}
+
+.prose-editor .ProseMirror ol {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+}
+
+.prose-editor .ProseMirror li {
+  line-height: 1.7;
+}
+
+.prose-editor .ProseMirror li > p {
+  margin-top: 0;
+}
+
+/* Inline code */
+.prose-editor .ProseMirror code {
+  background: #f3f3f3;
+  border-radius: 4px;
+  font-size: 0.9em;
+  padding: 2px 4px;
+}
+
+/* Code block */
+.prose-editor .ProseMirror pre {
+  background: #1e1e1e;
+  border-radius: 8px;
+  color: #d4d4d4;
+  font-family: ui-monospace, monospace;
+  font-size: 0.875em;
+  padding: 1em;
+  overflow-x: auto;
+}
+
+.prose-editor .ProseMirror pre code {
+  background: none;
+  border-radius: 0;
+  color: inherit;
+  font-size: 1em;
+  padding: 0;
+}
+
+/* Horizontal rule */
+.prose-editor .ProseMirror hr {
+  border: none;
+  border-top: 1px solid #E5E5E5;
+  margin: 1.5em 0;
+}
+
+/* Strong / em */
+.prose-editor .ProseMirror strong {
+  font-weight: 600;
+}
+
+/* Placeholder */
+.prose-editor .ProseMirror p.is-editor-empty:first-child::before {
+  color: #adb5bd;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
