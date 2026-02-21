@@ -5,8 +5,8 @@ import { type LiveMap, LiveObject as LO } from "@waits/openblocks-client";
 import type { LiveObject } from "@waits/openblocks-client";
 import { useMutation, useUpdateCursor } from "@waits/openblocks-react";
 import type { BoardObject, Frame } from "@/types/board";
-import { frameOriginX, FRAME_ORIGIN_Y, BOARD_WIDTH, BOARD_HEIGHT } from "@/lib/geometry/frames";
 import { useViewportStore } from "@/lib/store/viewport-store";
+import { cascadeDeleteFrame } from "./cascade-delete-frame";
 
 function boardObjectToLiveData(obj: BoardObject): Record<string, unknown> {
   const data: Record<string, unknown> = { ...obj };
@@ -66,64 +66,7 @@ export function useBoardMutations() {
     ({ storage }, frameId: string) => {
       const objects = storage.root.get("objects") as LiveMap<LiveObject>;
       const frames = storage.root.get("frames") as LiveMap<LiveObject>;
-      const frameLO = frames.get(frameId);
-      if (!frameLO) return;
-
-      const frameData = frameLO.toObject() as unknown as Frame;
-
-      // Compute frame bounds
-      const fx = frameOriginX(frameData.index);
-      const fy = FRAME_ORIGIN_Y;
-      const fr = fx + BOARD_WIDTH;
-      const fb = fy + BOARD_HEIGHT;
-
-      // Collect objects to delete (center within frame bounds)
-      const deletedIds = new Set<string>();
-      objects.forEach((lo: LiveObject, id: string) => {
-        const obj = lo.toObject() as unknown as BoardObject;
-        if (obj.type === "line") return;
-        const cx = obj.x + obj.width / 2;
-        const cy = obj.y + obj.height / 2;
-        if (cx >= fx && cx <= fr && cy >= fy && cy <= fb) {
-          deletedIds.add(id);
-        }
-      });
-
-      // Cascade: lines connected to deleted objects
-      objects.forEach((lo: LiveObject, id: string) => {
-        const obj = lo.toObject() as unknown as BoardObject;
-        if (obj.type !== "line") return;
-        if ((obj.start_object_id && deletedIds.has(obj.start_object_id)) ||
-            (obj.end_object_id && deletedIds.has(obj.end_object_id))) {
-          deletedIds.add(id);
-        }
-      });
-
-      // Unconnected lines within bounds
-      objects.forEach((lo: LiveObject, id: string) => {
-        if (deletedIds.has(id)) return;
-        const obj = lo.toObject() as unknown as BoardObject;
-        if (obj.type !== "line") return;
-        let points = obj.points;
-        if (typeof points === "string") {
-          try { points = JSON.parse(points as unknown as string); } catch { return; }
-        }
-        if (points && points.length >= 2) {
-          const cx = (points[0].x + points[points.length - 1].x) / 2;
-          const cy = (points[0].y + points[points.length - 1].y) / 2;
-          if (cx >= fx && cx <= fr && cy >= fy && cy <= fb) {
-            deletedIds.add(id);
-          }
-        }
-      });
-
-      // Delete objects
-      for (const id of deletedIds) {
-        objects.delete(id);
-      }
-
-      // Delete frame
-      frames.delete(frameId);
+      cascadeDeleteFrame(objects, frames, frameId);
     },
     []
   );
