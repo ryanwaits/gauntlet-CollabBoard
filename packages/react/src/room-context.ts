@@ -12,7 +12,7 @@ import type { Room } from "@waits/openblocks-client";
 import type { LiveObject } from "@waits/openblocks-client";
 import { useClient } from "./client-context.js";
 
-export const RoomContext = createContext<Room | null>(null);
+export const RoomContext: Context<Room | null> = createContext<Room | null>(null);
 const StorageContext: Context<{ root: LiveObject } | null> = createContext<{ root: LiveObject } | null>(null);
 
 export { StorageContext };
