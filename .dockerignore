@@ -3,10 +3,13 @@ node_modules
 .git
 .env*
 
-# Client-side packages (not needed for WS server)
-packages/client/
-packages/react/
-packages/ui/
+# Client-side packages — keep package.json for workspace resolution, exclude src
+packages/client/src/
+packages/client/dist/
+packages/react/src/
+packages/react/dist/
+packages/ui/src/
+packages/ui/dist/
 
 # Example app frontend (only server/ and src/types/ needed)
 examples/nextjs-whiteboard/src/app/

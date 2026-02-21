@@ -6,6 +6,9 @@ COPY package.json bun.lock ./
 COPY packages/types/package.json packages/types/
 COPY packages/storage/package.json packages/storage/
 COPY packages/server/package.json packages/server/
+COPY packages/client/package.json packages/client/
+COPY packages/react/package.json packages/react/
+COPY packages/ui/package.json packages/ui/
 COPY examples/nextjs-whiteboard/package.json examples/nextjs-whiteboard/
 
 # 2. Install all deps (including devDeps for bunup build tool)
