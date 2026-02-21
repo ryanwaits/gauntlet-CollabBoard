@@ -49,6 +49,14 @@ export { useUndo, useRedo, useCanUndo, useCanRedo, useHistory } from "./use-undo
 // Factory
 export { createRoomContext } from "./create-room-context.js";
 
+// Suspense hooks
+export {
+  useStorageSuspense,
+  useObjectSuspense,
+  useMapSuspense,
+  useListSuspense,
+} from "./suspense.js";
+
 // SSR helper
 export { ClientSideSuspense } from "./client-side-suspense.js";
 
