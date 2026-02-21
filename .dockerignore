@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.env*
+
+# Client-side packages (not needed for WS server)
+packages/client/
+packages/react/
+packages/ui/
+
+# Example app frontend (only server/ and src/types/ needed)
+examples/nextjs-whiteboard/src/app/
+examples/nextjs-whiteboard/src/components/
+examples/nextjs-whiteboard/src/lib/
+examples/nextjs-whiteboard/src/hooks/
+examples/nextjs-whiteboard/.next/
