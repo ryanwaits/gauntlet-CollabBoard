@@ -85,7 +85,7 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
   const [editingId, setEditingId] = useState<string | null>(null);
   const [stageMousePos, setStageMousePos] = useState<{ x: number; y: number } | null>(null);
   const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
-  const [followingUserId, setFollowingUserId] = useState<string | null>(null);
+
   const [aiOpen, setAiOpen] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem(`ai-open:${roomId}`) === "true";
@@ -106,12 +106,12 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
   useOpenBlocksSync();
   const mutations = useBoardMutations();
   const { undo, redo } = useUndoRedo();
-  const applyFollowViewport = useCallback(
-    (pos: { x: number; y: number }, scale: number) => canvasRef.current?.setViewport(pos, scale),
-    []
-  );
-  const exitFollow = useCallback(() => setFollowingUserId(null), []);
-  useFollowUser(followingUserId, exitFollow, applyFollowViewport);
+  const { followingUserId, followUser: setFollowingUserId, stopFollowing } = useFollowUser({
+    onViewportChange: useCallback(
+      (pos: { x: number; y: number }, scale: number) => canvasRef.current?.setViewport(pos, scale),
+      []
+    ),
+  });
 
   const handleStageMouseMove = useCallback(
     (relativePointerPos: { x: number; y: number } | null) => {
@@ -500,7 +500,7 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
       }
       if (e.key === "Escape") {
         (document.activeElement as HTMLElement)?.blur?.();
-        if (followingUserId) { setFollowingUserId(null); return; }
+        if (followingUserId) { stopFollowing(); return; }
         if (lineDrawing.drawingState.isDrawing) { lineDrawing.cancel(); return; }
         if (editingId) { setEditingId(null); }
         else if (activeTool === "line" || CREATION_TOOLS.includes(activeTool)) { setActiveTool("select"); }
@@ -517,7 +517,7 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [handleDelete, duplicateObjects, editingId, selectedId, selectedIds, objects, setSelected, activeTool, lineDrawing, finalizeLineDrawing, undo, redo, followingUserId]);
+  }, [handleDelete, duplicateObjects, editingId, selectedId, selectedIds, objects, setSelected, activeTool, lineDrawing, finalizeLineDrawing, undo, redo, followingUserId, stopFollowing]);
 
   const handleSelectionRect = useCallback(
     (rect: { x: number; y: number; width: number; height: number } | null) => { setSelectionRect(rect); },
@@ -601,7 +601,7 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
               Following {followedUser.displayName.split(" ")[0]}
               <button
                 className="ml-0.5 rounded-full hover:text-blue-900"
-                onClick={() => setFollowingUserId(null)}
+                onClick={() => stopFollowing()}
                 aria-label="Stop following"
               >
                 ✕
