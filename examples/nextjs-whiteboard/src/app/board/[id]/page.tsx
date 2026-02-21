@@ -23,10 +23,9 @@ import { findSnapTarget } from "@/lib/geometry/snap";
 import type { BoardObject, ToolMode, Frame } from "@/types/board";
 import { useFrameStore } from "@/lib/store/frame-store";
 import { useLineDrawing } from "@/hooks/use-line-drawing";
-import { useUndoRedo } from "@/hooks/use-undo-redo";
-import { useFollowUser } from "@/hooks/use-follow-user";
 import { AICommandBar } from "@/components/ai/ai-command-bar";
-import { OpenBlocksProvider, RoomProvider, useStatus, useSelf, useOthers } from "@waits/openblocks-react";
+import { OpenBlocksProvider, RoomProvider, useSelf, useOthers, useHistory, useFollowUser, useErrorListener, useLostConnectionListener, useOthersListener, useSyncStatus } from "@waits/openblocks-react";
+import { ConnectionBadge } from "@waits/openblocks-ui";
 import { client, buildInitialStorage } from "@/lib/sync/client";
 import { useOpenBlocksSync } from "@/lib/sync/use-openblocks-sync";
 import { useBoardMutations } from "@/lib/sync/use-board-mutations";
@@ -77,7 +76,6 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
   const { objects, selectedIds, setSelected, setSelectedIds, connectionIndex } = useBoardStore();
   const self = useSelf();
   const others = useOthers();
-  const status = useStatus();
   const viewportScale = useViewportStore((s) => s.scale);
   const viewportPos = useViewportStore((s) => s.pos);
   const [activeTool, setActiveTool] = useState<ToolMode>("select");
@@ -105,7 +103,7 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
 
   useOpenBlocksSync();
   const mutations = useBoardMutations();
-  const { undo, redo } = useUndoRedo();
+  const { undo, redo } = useHistory();
   const { followingUserId, followUser: setFollowingUserId, stopFollowing } = useFollowUser({
     onViewportChange: useCallback(
       (pos: { x: number; y: number }, scale: number) => canvasRef.current?.setViewport(pos, scale),
@@ -141,9 +139,8 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
   }, [mutations]);
 
   // Re-broadcast cursor+viewport when a new user joins so they get our current state immediately
-  const prevOthersLengthRef = useRef(others.length);
-  useEffect(() => {
-    if (others.length > prevOthersLengthRef.current) {
+  useOthersListener((event) => {
+    if (event.type === "enter") {
       const { pos: vpPos, scale } = useViewportStore.getState();
       const cursorPos = lastCursorPosRef.current ?? {
         x: (window.innerWidth / 2 - vpPos.x) / scale,
@@ -151,8 +148,11 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
       };
       mutations.updateCursor(cursorPos.x, cursorPos.y);
     }
-    prevOthersLengthRef.current = others.length;
-  }, [others, mutations]);
+  });
+
+  useErrorListener((err) => console.error("[OpenBlocks]", err.message));
+  useLostConnectionListener(() => console.warn("[OpenBlocks] Connection lost, reconnecting…"));
+  const syncStatus = useSyncStatus();
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     setMousePos({ x: e.clientX, y: e.clientY });
@@ -589,10 +589,9 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
     >
       {/* Presence + connection status */}
       <div className="absolute right-4 top-4 z-40 flex items-center gap-3">
-        {status !== "connected" && (
-          <span className="rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-medium text-yellow-700 shadow-sm">
-            Reconnecting...
-          </span>
+        <ConnectionBadge />
+        {syncStatus === "synchronizing" && (
+          <span className="text-xs text-gray-400">Syncing...</span>
         )}
         {followingUserId && (() => {
           const followedUser = [...(self ? [self] : []), ...others].find(u => u.userId === followingUserId);
@@ -609,7 +608,7 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
             </span>
           ) : null;
         })()}
-        <OnlineUsers followingUserId={followingUserId} onFollow={setFollowingUserId} />
+        <OnlineUsers followingUserId={followingUserId} onFollow={(id) => id ? setFollowingUserId(id) : stopFollowing()} />
       </div>
 
       {/* Canvas */}
