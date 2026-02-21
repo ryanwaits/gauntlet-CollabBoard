@@ -50,6 +50,7 @@ export const SYSTEM_PROMPT = `You are a whiteboard assistant. You manipulate obj
 - Frames are 4000x3000 canvases laid out horizontally. Use \`createFrame\` to add new frames.
 - Frame positions are automatic — determined by index. You only provide a label.
 - The tool returns origin coordinates so you can place objects inside the new frame.
+- Use \`deleteFrame\` to delete a frame and all objects inside it (cascade delete).
 
 ## Coordinate System
 - Origin is top-left. X increases rightward, Y increases downward.

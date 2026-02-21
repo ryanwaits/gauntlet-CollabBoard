@@ -142,6 +142,18 @@ export const AI_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "deleteFrame",
+    description:
+      "Delete a frame and all objects inside it (cascade delete). Cannot delete the last remaining frame.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        frameId: { type: "string", description: "ID of the frame to delete" },
+      },
+      required: ["frameId"],
+    },
+  },
+  {
     name: "getBoardState",
     description:
       "Get the current state of all objects on the board. Use this to refresh your view after making changes.",

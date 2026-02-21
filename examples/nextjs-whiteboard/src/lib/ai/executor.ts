@@ -4,6 +4,7 @@ import type { BoardObject, Frame } from "@/types/board";
 import { serializeBoardState } from "./system-prompt";
 import { computeEdgePoint, computeLineBounds } from "@/lib/geometry/edge-intersection";
 import { frameOriginX, FRAME_ORIGIN_Y } from "@/lib/geometry/frames";
+import { cascadeDeleteFrame } from "@/lib/sync/cascade-delete-frame";
 
 export interface ExecutorContext {
   boardId: string;
@@ -243,6 +244,19 @@ export async function executeToolCall(
       if (idx === -1) return { result: `Error: object ${toolInput.objectId} not found` };
       crdtDelete(ctx, toolInput.objectId as string);
       return { result: `Deleted object ${toolInput.objectId}` };
+    }
+
+    case "deleteFrame": {
+      if (!ctx.framesMap) return { result: "Error: frames storage not available" };
+      const frameId = toolInput.frameId as string;
+      const idx = ctx.frames.findIndex((f) => f.id === frameId);
+      if (idx === -1) return { result: `Error: frame ${frameId} not found` };
+      ctx.room.batch(() => {
+        cascadeDeleteFrame(ctx.objectsMap, ctx.framesMap!, frameId);
+      });
+      ctx.frames.splice(idx, 1);
+      ctx.objects = ctx.objects.filter((o) => ctx.objectsMap.has(o.id));
+      return { result: `Deleted frame ${frameId} and all contained objects` };
     }
 
     case "getBoardState": {
