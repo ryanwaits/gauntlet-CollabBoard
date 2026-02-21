@@ -15,6 +15,7 @@ export interface JoinRoomOptions {
   initialStorage?: Record<string, unknown>;
   inactivityTime?: number;
   offlineInactivityTime?: number;
+  token?: string;
 }
 
 export class OpenBlocksClient {
@@ -41,6 +42,7 @@ export class OpenBlocksClient {
       initialStorage: options.initialStorage,
       inactivityTime: options.inactivityTime,
       offlineInactivityTime: options.offlineInactivityTime,
+      token: options.token,
     });
 
     this.rooms.set(roomId, room);

@@ -28,6 +28,7 @@ export interface RoomConfig {
   initialStorage?: Record<string, unknown>;
   inactivityTime?: number;
   offlineInactivityTime?: number;
+  token?: string;
 }
 
 type RoomEvents = {
@@ -78,7 +79,10 @@ export class Room {
 
     const wsScheme = config.serverUrl.replace(/^http/, "ws");
     const base = wsScheme.replace(/\/$/, "");
-    const url = `${base}/rooms/${config.roomId}?userId=${encodeURIComponent(config.userId)}&displayName=${encodeURIComponent(config.displayName)}`;
+    let url = `${base}/rooms/${config.roomId}?userId=${encodeURIComponent(config.userId)}&displayName=${encodeURIComponent(config.displayName)}`;
+    if (config.token) {
+      url += `&token=${encodeURIComponent(config.token)}`;
+    }
 
     this.activityTracker = new ActivityTracker({
       inactivityTime: config.inactivityTime,
@@ -171,6 +175,35 @@ export class Room {
     return this.presence.filter(
       (u) => u.userId !== this.userId && u.location === locationId
     );
+  }
+
+  // --- Follow API ---
+
+  followUser(targetUserId: string): void {
+    const self = this.getSelf();
+    const currentMetadata = (self?.metadata as Record<string, unknown>) ?? {};
+    this.updatePresence({ metadata: { ...currentMetadata, following: targetUserId } });
+  }
+
+  stopFollowing(): void {
+    const self = this.getSelf();
+    const currentMetadata = (self?.metadata as Record<string, unknown>) ?? {};
+    this.updatePresence({ metadata: { ...currentMetadata, following: null } });
+  }
+
+  getFollowing(): string | null {
+    const self = this.getSelf();
+    const metadata = self?.metadata as Record<string, unknown> | undefined;
+    return (metadata?.following as string) ?? null;
+  }
+
+  getFollowers(): string[] {
+    return this.getOthers()
+      .filter((u) => {
+        const metadata = u.metadata as Record<string, unknown> | undefined;
+        return metadata?.following === this.userId;
+      })
+      .map((u) => u.userId);
   }
 
   // --- Live State API ---

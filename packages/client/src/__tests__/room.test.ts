@@ -192,6 +192,14 @@ describe("Room", () => {
     expect(room.getSelf()).toBeNull();
   });
 
+  it("appends token to WebSocket URL when provided", () => {
+    const room = createRoom({ token: "my-secret-token" });
+    room.connect();
+    expect(MockWebSocket.instances[0].url).toBe(
+      "ws://localhost:3000/rooms/test-room?userId=alice&displayName=Alice&token=my-secret-token"
+    );
+  });
+
   it("handles http:// serverUrl by converting to ws://", () => {
     const room = new Room({
       serverUrl: "http://localhost:3000",
@@ -270,6 +278,72 @@ describe("Room", () => {
   });
 
   // --- Task #13: Validate cursorThrottleMs ---
+
+  // --- Follow API ---
+
+  it("followUser sets following in presence metadata", async () => {
+    const room = createRoom();
+    room.connect();
+    await new Promise((r) => queueMicrotask(r));
+
+    // Set up presence so getSelf works
+    MockWebSocket.instances[0].simulateMessage(
+      JSON.stringify({ type: "presence", users: [{ userId: "alice", displayName: "Alice", color: "#f00", connectedAt: 1 }] })
+    );
+
+    room.followUser("bob");
+    expect(MockWebSocket.instances[0].send).toHaveBeenCalledWith(
+      JSON.stringify({ type: "presence:update", metadata: { following: "bob" } })
+    );
+  });
+
+  it("stopFollowing clears following in presence metadata", async () => {
+    const room = createRoom();
+    room.connect();
+    await new Promise((r) => queueMicrotask(r));
+
+    MockWebSocket.instances[0].simulateMessage(
+      JSON.stringify({ type: "presence", users: [{ userId: "alice", displayName: "Alice", color: "#f00", connectedAt: 1, metadata: { following: "bob" } }] })
+    );
+
+    room.stopFollowing();
+    expect(MockWebSocket.instances[0].send).toHaveBeenCalledWith(
+      JSON.stringify({ type: "presence:update", metadata: { following: null } })
+    );
+  });
+
+  it("getFollowing reads own following from presence metadata", async () => {
+    const room = createRoom();
+    room.connect();
+    await new Promise((r) => queueMicrotask(r));
+
+    expect(room.getFollowing()).toBeNull();
+
+    MockWebSocket.instances[0].simulateMessage(
+      JSON.stringify({ type: "presence", users: [{ userId: "alice", displayName: "Alice", color: "#f00", connectedAt: 1, metadata: { following: "bob" } }] })
+    );
+    expect(room.getFollowing()).toBe("bob");
+  });
+
+  it("getFollowers filters others following this user", async () => {
+    const room = createRoom();
+    room.connect();
+    await new Promise((r) => queueMicrotask(r));
+
+    MockWebSocket.instances[0].simulateMessage(
+      JSON.stringify({
+        type: "presence",
+        users: [
+          { userId: "alice", displayName: "Alice", color: "#f00", connectedAt: 1 },
+          { userId: "bob", displayName: "Bob", color: "#0f0", connectedAt: 2, metadata: { following: "alice" } },
+          { userId: "carol", displayName: "Carol", color: "#00f", connectedAt: 3, metadata: { following: "alice" } },
+          { userId: "dave", displayName: "Dave", color: "#ff0", connectedAt: 4, metadata: { following: "bob" } },
+        ],
+      })
+    );
+
+    expect(room.getFollowers()).toEqual(["bob", "carol"]);
+  });
 
   it("cursorThrottleMs clamped to minimum 1", () => {
     const room = createRoom({ cursorThrottleMs: 0 });
