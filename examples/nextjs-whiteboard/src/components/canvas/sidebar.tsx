@@ -37,6 +37,7 @@ interface SidebarProps {
   onNewFrame?: () => void;
   frames?: Frame[];
   onDeleteFrame?: (frameId: string) => void;
+  onNavigateToFrame?: (frameIndex: number) => void;
 }
 
 const tools: { mode: ToolMode; icon: typeof MousePointer2; label: string; shortcut: string }[] = [
@@ -67,6 +68,7 @@ export function Sidebar({
   onNewFrame,
   frames,
   onDeleteFrame,
+  onNavigateToFrame,
 }: SidebarProps) {
   const signOut = useAuthStore((s) => s.signOut);
   const [hoveredTool, setHoveredTool] = useState<ToolMode | null>(null);
@@ -187,20 +189,30 @@ export function Sidebar({
                 <span className="px-3 text-xs font-semibold text-gray-400 uppercase">Frames</span>
                 <div className="mt-1 flex flex-col gap-0.5">
                   {frames.map((frame) => (
-                    <div key={frame.id} className="flex items-center rounded-lg px-3 py-1.5 text-sm text-gray-600">
+                    <div
+                      key={frame.id}
+                      className="flex cursor-pointer items-center rounded-lg px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+                      onClick={() => {
+                        if (confirmingDeleteId !== frame.id) {
+                          onNavigateToFrame?.(frame.index);
+                          setBoardPanelOpen(false);
+                        }
+                      }}
+                    >
                       {confirmingDeleteId === frame.id ? (
                         <div className="flex w-full items-center justify-between">
                           <span className="text-xs text-red-600">Delete this frame?</span>
                           <div className="flex gap-1">
                             <button
                               className="rounded px-2 py-0.5 text-xs text-gray-500 hover:bg-gray-100"
-                              onClick={() => setConfirmingDeleteId(null)}
+                              onClick={(e) => { e.stopPropagation(); setConfirmingDeleteId(null); }}
                             >
                               Cancel
                             </button>
                             <button
                               className="rounded bg-red-500 px-2 py-0.5 text-xs text-white hover:bg-red-600"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 onDeleteFrame?.(frame.id);
                                 setConfirmingDeleteId(null);
                                 setBoardPanelOpen(false);
@@ -216,7 +228,7 @@ export function Sidebar({
                           {frames.length > 1 && onDeleteFrame && (
                             <button
                               className="ml-2 rounded p-0.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-red-500"
-                              onClick={() => setConfirmingDeleteId(frame.id)}
+                              onClick={(e) => { e.stopPropagation(); setConfirmingDeleteId(frame.id); }}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>

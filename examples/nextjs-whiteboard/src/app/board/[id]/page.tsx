@@ -518,6 +518,17 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
         else { setSelected(null); }
       }
       if (e.key === "/" && !editingId) { e.preventDefault(); setAiOpen(true); return; }
+      if ((e.key === "[" || e.key === "]") && !editingId && !(e.metaKey || e.ctrlKey)) {
+        const { frames: sortedFrames, activeFrameIndex } = useFrameStore.getState();
+        if (sortedFrames.length < 2) return;
+        const currentPos = sortedFrames.findIndex((f) => f.index === activeFrameIndex);
+        if (e.key === "[" && currentPos > 0) {
+          canvasRef.current?.navigateToFrame(sortedFrames[currentPos - 1].index);
+        } else if (e.key === "]" && currentPos < sortedFrames.length - 1) {
+          canvasRef.current?.navigateToFrame(sortedFrames[currentPos + 1].index);
+        }
+        return;
+      }
       if (e.key === "Enter") {
         if (lineDrawing.drawingState.isDrawing) { finalizeLineDrawing(); return; }
         if (!editingId && selectedId) {
@@ -610,7 +621,7 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
       <div className="absolute right-4 top-4 z-40 flex items-center gap-3">
         <ConnectionBadge />
         {syncStatus === "synchronizing" && (
-          <span className="text-xs text-gray-400">Syncing...</span>
+          <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">Syncing...</span>
         )}
         {followingUserId && (() => {
           const followedUser = [...(self ? [self] : []), ...others].find(u => u.userId === followingUserId);
@@ -755,6 +766,7 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
         onNewFrame={handleNewFrame}
         frames={frames}
         onDeleteFrame={handleDeleteFrame}
+        onNavigateToFrame={(index) => canvasRef.current?.navigateToFrame(index)}
       />
 
       {/* AI Command Bar */}
