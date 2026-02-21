@@ -5,7 +5,7 @@ import {
   createLeaveHandler,
 } from "./persistence";
 
-const PORT = parseInt(process.env.OPENBLOCKS_PORT || "1999", 10);
+const PORT = parseInt(process.env.PORT || process.env.OPENBLOCKS_PORT || "1999", 10);
 
 // Handlers reference `server` via closure — assigned before start()
 let storageChangeHandler: ReturnType<typeof createStorageChangeHandler>;

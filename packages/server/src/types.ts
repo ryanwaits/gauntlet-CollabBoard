@@ -41,6 +41,7 @@ export interface RoomConfig {
 export interface ServerConfig {
   port?: number;
   path?: string;
+  healthPath?: string;
   auth?: AuthHandler;
   roomConfig?: RoomConfig;
   onMessage?: OnMessageHandler;

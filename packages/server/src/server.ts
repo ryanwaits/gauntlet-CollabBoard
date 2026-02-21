@@ -46,6 +46,7 @@ export class OpenBlocksServer {
   private roomManager = new RoomManager();
 
   private path: string;
+  private healthPath: string;
   private auth?: AuthHandler;
   private cleanupTimeoutMs: number;
   private maxConnections?: number;
@@ -76,6 +77,7 @@ export class OpenBlocksServer {
 
   constructor(config: ServerConfig = {}) {
     this.path = config.path ?? DEFAULT_PATH;
+    this.healthPath = config.healthPath ?? "/health";
     this.auth = config.auth;
     this.cleanupTimeoutMs =
       config.roomConfig?.cleanupTimeoutMs ?? DEFAULT_CLEANUP_MS;
@@ -86,7 +88,12 @@ export class OpenBlocksServer {
     this.onStorageChange = config.onStorageChange;
     this.initialStorage = config.initialStorage;
 
-    this.httpServer = http.createServer((_req, res) => {
+    this.httpServer = http.createServer((req, res) => {
+      if (req.method === "GET" && req.url === this.healthPath) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "ok" }));
+        return;
+      }
       res.writeHead(426);
       res.end("Upgrade required");
     });
