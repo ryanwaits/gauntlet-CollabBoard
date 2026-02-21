@@ -4,6 +4,18 @@ OpenBlocks is a real-time collaboration framework. This guide covers the four fo
 
 ---
 
+## Step 0: Start the Dev Server
+
+Before writing any client code, start the local OpenBlocks server:
+
+```bash
+npx openblocks dev
+```
+
+This starts a WebSocket server on `ws://localhost:1999` with automatic room persistence to `.openblocks/rooms/`. See the [CLI docs](./cli.md) for all flags (`--port`, `--data-dir`, `--reset`) and room management commands.
+
+---
+
 ## Quick Start
 
 ```bash

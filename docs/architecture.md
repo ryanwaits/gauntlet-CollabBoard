@@ -7,11 +7,16 @@ types (no deps)
   ↑
 storage (types)
   ↑
-client (storage, types)        server (storage, types, ws)
-  ↑                              ↑
-react (client, types)          [standalone]
+client (storage, types)           server (storage, types, ws)
+  ↑                                 ↑
+react (client, types)             cli (server)
   ↑
 ui (react, types)
+
+yjs (client, y-protocols)
+  ↑
+react-tiptap (react, yjs, tiptap, y-prosemirror)
+react-codemirror (react, yjs, codemirror, y-codemirror.next)
 ```
 
 ## Packages
@@ -136,6 +141,59 @@ Pre-built styled components for presence and cursors.
 - `AvatarStack` — compact stack with `+N` overflow
 - `ConnectionBadge` — green/yellow/red/gray status dot
 - `useCursorTracking(containerRef)` — attaches mousemove listener, returns `updateCursor`
+- `CollabPills` — colored name pills for all users in the room
+
+---
+
+### @waits/openblocks-cli
+
+Local development server with room persistence and inspection tools.
+
+- `openblocks dev` — starts WebSocket server (default port 1999) with auto-persistence to `.openblocks/rooms/`
+- `openblocks rooms list|clear|inspect` — manage persisted room data
+- Keyboard shortcuts: `q` to quit, `c` to clear terminal
+
+---
+
+### @waits/openblocks-yjs
+
+Yjs provider that bridges an OpenBlocks `Room` to a `Y.Doc` for collaborative text editing.
+
+**Key exports:**
+- `OpenBlocksYjsProvider` — constructor takes `(Room, { doc?: Y.Doc })`. Methods: `connect()`, `disconnect()`, `destroy()`. Getters: `synced`, `connected`. Properties: `doc`, `awareness`.
+- Events: `sync`, `awareness-update`, `status`
+- Wire protocol: `yjs:sync-step1`, `yjs:sync-step2`, `yjs:update`, `yjs:awareness` — all base64-encoded over the room message channel
+
+---
+
+### @waits/openblocks-react-tiptap
+
+TipTap editor integration with collaborative editing, toolbar, slash commands, and block extensions.
+
+**Key exports:**
+- `useOpenBlocksExtension(options?)` — returns a TipTap `Extension` wiring Yjs sync, cursors, and undo
+- `yjsUndo(editor)`, `yjsRedo(editor)` — call Yjs undo/redo directly
+- `Toolbar` — fixed toolbar with heading, formatting, list, and history buttons
+- `FloatingToolbar` — selection-triggered inline toolbar (bold, italic, underline, strike, code, highlight, link)
+- `createSlashCommandExtension(items?)` — `/` command menu with 13 defaults across 3 sections
+- `BlockHandle` — hover handle with context menu (delete, duplicate, move up/down)
+- `Callout` — block node (info/warning/tip/danger types)
+- `ImagePlaceholder` — image node with URL input placeholder
+- `createCodeBlockExtension(lowlight)` — syntax-highlighted code blocks with language picker (28 languages)
+
+---
+
+### @waits/openblocks-react-codemirror
+
+CodeMirror 6 integration with collaborative editing, markdown-aware toolbar, and status bar.
+
+**Key exports:**
+- `useOpenBlocksCodeMirror(options?)` — creates a collaborative CodeMirror editor. Returns `{ containerRef, viewRef, languageName }`
+- `typoraTheme` — Zed-inspired editor theme
+- `typoraHighlightStyle` — syntax highlighting for markdown and code
+- `FloatingToolbar` — markdown-aware selection toolbar (bold, italic, strikethrough, code)
+- `StatusBar` — bottom bar showing line:col, language, and online user count
+- `codeblockPlugin` — line decoration for fenced code blocks
 
 ---
 
@@ -219,3 +277,12 @@ Simple collaborative todo list. `LiveObject` root with `items: LiveList<LiveObje
 
 ### nextjs-whiteboard
 Full collaborative canvas — shapes, connectors, sticky notes, text, frames, AI command bar. Extends the core with Zustand for local viewport state, Supabase for persistence (via `onStorageChange`/`initialStorage` callbacks), and app-layer features like cursor follow mode.
+
+### nextjs-collab-editor
+Notion-style collaborative rich text editor using `@waits/openblocks-react-tiptap`. Demonstrates `useOpenBlocksExtension`, `Toolbar`, `FloatingToolbar`, slash commands, block handle, callouts, and image placeholders.
+
+### nextjs-notion-editor
+Full Notion-clone editor with `@waits/openblocks-react-tiptap`. Slash commands, callouts, code blocks with syntax highlighting, and collaborative cursors.
+
+### nextjs-markdown-editor
+Collaborative markdown editor using `@waits/openblocks-react-codemirror`. Tabbed file interface, Typora-inspired theme, floating toolbar, status bar, and `codeblockPlugin` for fenced code styling.
