@@ -1,6 +1,6 @@
 # Lively
 
-Real-time collaboration framework for React. CRDT storage, presence, cursors, live state, and undo/redo — all over WebSockets.
+Real-time collaboration framework for React. CRDT-powered storage, presence, cursors, live state, and undo/redo — all over WebSockets.
 
 ## Packages
 
