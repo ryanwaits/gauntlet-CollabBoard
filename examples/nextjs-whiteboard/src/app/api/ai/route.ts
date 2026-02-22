@@ -157,18 +157,19 @@ export async function POST(request: Request) {
     // Agentic loop
     let response = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 4096,
+      max_tokens: 16384,
       system: SYSTEM_PROMPT,
       tools: AI_TOOLS,
       messages,
     });
 
     for (let iteration = 0; iteration < 10; iteration++) {
-      if (response.stop_reason !== "tool_use") break;
-
       const toolUseBlocks = response.content.filter(
         (b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use"
       );
+
+      // Break if no tool calls to execute (end_turn or empty max_tokens response)
+      if (toolUseBlocks.length === 0) break;
 
       const modifyTools = ["moveObject", "resizeObject", "updateText", "changeColor"];
       const toolResults: Anthropic.ToolResultBlockParam[] = [];
@@ -197,7 +198,7 @@ export async function POST(request: Request) {
 
       response = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 4096,
+        max_tokens: 16384,
         system: SYSTEM_PROMPT,
         tools: AI_TOOLS,
         messages,
