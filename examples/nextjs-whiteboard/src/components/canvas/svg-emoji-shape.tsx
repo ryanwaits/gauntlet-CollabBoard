@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useRef } from "react";
 import { useViewportStore } from "@/lib/store/viewport-store";
+import { SvgResizeHandles } from "./svg-resize-handles";
 import type { BoardObject } from "@/types/board";
 
 interface StampShapeProps {
@@ -11,6 +12,8 @@ interface StampShapeProps {
   onSelect?: (id: string, shiftKey?: boolean) => void;
   onDragMove?: (id: string, x: number, y: number) => void;
   onDragEnd?: (id: string, x: number, y: number) => void;
+  onResize?: (id: string, updates: { x: number; y: number; width: number; height: number }) => void;
+  onResizeEnd?: (id: string, updates: { x: number; y: number; width: number; height: number }) => void;
   interactive?: boolean;
   scale: number;
 }
@@ -39,7 +42,8 @@ export const STAMP_CONFIGS: Record<string, StampConfig> = {
 export const STAMP_TYPES = Object.keys(STAMP_CONFIGS);
 
 export const SvgEmojiShape = memo(function SvgEmojiShape({
-  id, object, isSelected, onSelect, onDragMove, onDragEnd, interactive = true,
+  id, object, isSelected, onSelect, onDragMove, onDragEnd,
+  onResize, onResizeEnd, interactive = true, scale,
 }: StampShapeProps) {
   const dragRef = useRef<{
     startClientX: number;
@@ -51,7 +55,14 @@ export const SvgEmojiShape = memo(function SvgEmojiShape({
 
   const stampType = object.emoji_type || "thumbsup";
   const config = STAMP_CONFIGS[stampType] || STAMP_CONFIGS.thumbsup;
-  const size = STAMP_SIZE;
+
+  // Use object dimensions, fall back to default STAMP_SIZE
+  const w = object.width || STAMP_SIZE;
+  const h = object.height || STAMP_SIZE;
+
+  // Scale fontSize proportionally to size relative to default 64
+  const sizeScale = Math.min(w, h) / STAMP_SIZE;
+  const fontSize = config.fontSize * sizeScale;
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
@@ -94,10 +105,9 @@ export const SvgEmojiShape = memo(function SvgEmojiShape({
     window.addEventListener("pointerup", handleUp);
   }, [id, onSelect, interactive, onDragMove, onDragEnd, object.x, object.y]);
 
-  // Text positioning within the 64x64 viewBox mapped to object position
-  const cx = object.x + size / 2;
-  const cy = object.y + size / 2;
-  const textY = cy + config.fontSize * 0.33; // baseline offset
+  const cx = object.x + w / 2;
+  const cy = object.y + h / 2;
+  const textY = cy + fontSize * 0.33; // baseline offset
 
   return (
     <g>
@@ -106,8 +116,8 @@ export const SvgEmojiShape = memo(function SvgEmojiShape({
         <rect
           x={object.x - 3}
           y={object.y - 3}
-          width={size + 6}
-          height={size + 6}
+          width={w + 6}
+          height={h + 6}
           rx={6}
           ry={6}
           fill="none"
@@ -122,63 +132,69 @@ export const SvgEmojiShape = memo(function SvgEmojiShape({
       <rect
         x={object.x}
         y={object.y}
-        width={size}
-        height={size}
+        width={w}
+        height={h}
         fill="transparent"
         style={{ cursor: interactive ? "move" : "default" }}
         onPointerDown={handlePointerDown}
       />
 
       {/* Stamp: thick white outline sticker style */}
-      <g pointerEvents="none">
+      {/* Animated stamps: translate group to emoji center so scale pulses in place */}
+      <g pointerEvents="none" transform={config.animated ? `translate(${cx}, ${textY})` : undefined}>
+        {config.animated && (
+          <animateTransform
+            attributeName="transform"
+            type="scale"
+            values="1;1.08;1"
+            dur="1.2s"
+            repeatCount="indefinite"
+            additive="sum"
+          />
+        )}
         {/* White outline layer */}
         <text
-          x={cx}
-          y={textY}
+          x={config.animated ? 0 : cx}
+          y={config.animated ? 0 : textY}
           textAnchor="middle"
-          fontSize={config.fontSize}
+          fontSize={fontSize}
           fontWeight={config.fontWeight}
           stroke="white"
-          strokeWidth={6}
+          strokeWidth={6 * sizeScale}
           strokeLinejoin="round"
           paintOrder="stroke"
           fill="none"
           style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.08))" }}
         >
-          {config.animated && (
-            <animateTransform
-              attributeName="transform"
-              type="scale"
-              values="1;1.08;1"
-              dur="1.2s"
-              repeatCount="indefinite"
-              additive="sum"
-            />
-          )}
           {config.display}
         </text>
         {/* Emoji fill layer */}
         <text
-          x={cx}
-          y={textY}
+          x={config.animated ? 0 : cx}
+          y={config.animated ? 0 : textY}
           textAnchor="middle"
-          fontSize={config.fontSize}
+          fontSize={fontSize}
           fontWeight={config.fontWeight}
           fill={config.fill || undefined}
         >
-          {config.animated && (
-            <animateTransform
-              attributeName="transform"
-              type="scale"
-              values="1;1.08;1"
-              dur="1.2s"
-              repeatCount="indefinite"
-              additive="sum"
-            />
-          )}
           {config.display}
         </text>
       </g>
+
+      {/* Resize handles — wrapped in center-translated group to match handle coordinate system */}
+      {isSelected && interactive && onResize && onResizeEnd && (
+        <g transform={`translate(${cx}, ${object.y + h / 2})`}>
+          <SvgResizeHandles
+            width={w}
+            height={h}
+            scale={scale}
+            objectX={object.x}
+            objectY={object.y}
+            onResize={(updates) => onResize(id, updates)}
+            onResizeEnd={(updates) => onResizeEnd(id, updates)}
+          />
+        </g>
+      )}
     </g>
   );
 });

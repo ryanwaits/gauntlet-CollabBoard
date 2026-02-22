@@ -150,6 +150,8 @@ export const CanvasObjects = memo(function CanvasObjects({
               <SvgEmojiShape
                 key={obj.id}
                 {...shared}
+                onResize={interactive ? onResize : undefined}
+                onResizeEnd={interactive ? onResizeEnd : undefined}
                 scale={scale}
               />
             );
