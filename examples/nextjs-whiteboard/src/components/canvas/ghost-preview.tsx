@@ -5,6 +5,7 @@ import type { ToolMode } from "@/types/board";
 interface GhostPreviewProps {
   activeTool: ToolMode;
   mousePos: { x: number; y: number } | null;
+  selectedStampType?: string;
 }
 
 const GHOST_CONFIGS: Partial<Record<ToolMode, { width: number; height: number; color: string; label: string; borderRadius: number; clipPath?: string }>> = {
@@ -14,11 +15,27 @@ const GHOST_CONFIGS: Partial<Record<ToolMode, { width: number; height: number; c
   circle: { width: 150, height: 150, color: "#dbeafe", label: "Circle", borderRadius: 75 },
   diamond: { width: 150, height: 150, color: "#e9d5ff", label: "Diamond", borderRadius: 0, clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" },
   pill: { width: 200, height: 80, color: "#d1fae5", label: "Pill", borderRadius: 40 },
+  stamp: { width: 64, height: 64, color: "transparent", label: "\ud83d\ude0a", borderRadius: 32 },
 };
 
-export function GhostPreview({ activeTool, mousePos }: GhostPreviewProps) {
+const STAMP_LABELS: Record<string, string> = {
+  thumbsup: "\ud83d\udc4d",
+  heart: "\u2764\ufe0f",
+  fire: "\ud83d\udd25",
+  star: "\u2b50",
+  eyes: "\ud83d\udc40",
+  laughing: "\ud83d\ude02",
+  party: "\ud83c\udf89",
+  plusone: "+1",
+};
+
+export function GhostPreview({ activeTool, mousePos, selectedStampType }: GhostPreviewProps) {
   const config = GHOST_CONFIGS[activeTool];
   if (!config || !mousePos) return null;
+
+  const stampLabel = activeTool === "stamp" && selectedStampType
+    ? STAMP_LABELS[selectedStampType] || config.label
+    : null;
 
   return (
     <div
@@ -38,6 +55,11 @@ export function GhostPreview({ activeTool, mousePos }: GhostPreviewProps) {
     >
       {activeTool === "text" && (
         <span className="pl-2 text-sm text-gray-400">Text</span>
+      )}
+      {stampLabel && (
+        <span className="flex h-full w-full items-center justify-center text-3xl">
+          {stampLabel}
+        </span>
       )}
     </div>
   );

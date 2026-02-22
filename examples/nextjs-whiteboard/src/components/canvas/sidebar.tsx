@@ -12,6 +12,8 @@ import {
   Diamond,
   RectangleHorizontal,
   Minus,
+  Pencil,
+  Stamp,
   Trash2,
   Menu,
   Home,
@@ -33,6 +35,8 @@ interface SidebarProps {
   currentBoardId?: string;
   onAIToggle?: () => void;
   aiOpen?: boolean;
+  selectedStampType?: string;
+  onStampTypeChange?: (type: string) => void;
 }
 
 const tools: { mode: ToolMode; icon: typeof MousePointer2; label: string; shortcut: string }[] = [
@@ -48,6 +52,8 @@ const creationTools: { mode: ToolMode; icon: typeof StickyNote; label: string; s
   { mode: "diamond", icon: Diamond, label: "Diamond", shortcut: "D" },
   { mode: "pill", icon: RectangleHorizontal, label: "Pill", shortcut: "P" },
   { mode: "line", icon: Minus, label: "Line", shortcut: "L" },
+  { mode: "draw", icon: Pencil, label: "Draw", shortcut: "B" },
+  { mode: "stamp", icon: Stamp, label: "Stamp", shortcut: "E" },
 ];
 
 export function Sidebar({
@@ -60,6 +66,8 @@ export function Sidebar({
   currentBoardId,
   onAIToggle,
   aiOpen,
+  selectedStampType,
+  onStampTypeChange,
 }: SidebarProps) {
   const signOut = useAuthStore((s) => s.signOut);
   const [hoveredTool, setHoveredTool] = useState<ToolMode | null>(null);
@@ -195,6 +203,37 @@ export function Sidebar({
       <div className="my-1 h-5 w-px bg-gray-700" />
 
       {creationTools.map((t) => renderButton(t.mode, t.icon, t.label, t.shortcut))}
+
+      {/* Stamp picker popup */}
+      {activeTool === "stamp" && onStampTypeChange && (
+        <div className="absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2">
+          <div className="flex items-center gap-1 rounded-xl bg-white px-3 py-2 shadow-lg">
+            {[
+              { type: "thumbsup", label: "\ud83d\udc4d" },
+              { type: "heart", label: "\u2764\ufe0f" },
+              { type: "fire", label: "\ud83d\udd25" },
+              { type: "star", label: "\u2b50" },
+              { type: "eyes", label: "\ud83d\udc40" },
+              { type: "laughing", label: "\ud83d\ude02" },
+              { type: "party", label: "\ud83c\udf89" },
+              { type: "plusone", label: "+1" },
+            ].map((e) => (
+              <button
+                key={e.type}
+                className={`flex h-9 w-9 items-center justify-center rounded-lg text-lg transition-colors ${
+                  selectedStampType === e.type
+                    ? "bg-blue-100 ring-2 ring-blue-500"
+                    : "hover:bg-gray-100"
+                }`}
+                onClick={() => onStampTypeChange(e.type)}
+                title={`${e.label} (Tab to cycle)`}
+              >
+                {e.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {onAIToggle && (
         <>
