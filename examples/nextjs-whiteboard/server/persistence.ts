@@ -192,6 +192,55 @@ export async function buildInitialStorage(roomId: string): Promise<SerializedCrd
     fetchBoardFrames(boardUUID),
   ]);
 
+  // Build resolved frames list (including default if no persisted frames)
+  let resolvedFrames: Frame[];
+  if (frames.length > 0) {
+    resolvedFrames = frames;
+  } else {
+    const defaultFrameId = boardUUID.replace(/-([0-9a-f]{12})$/i, "-000000000001");
+    resolvedFrames = [{ id: defaultFrameId, index: 0, label: "Frame 1" }];
+  }
+
+  const frameIds = new Set(resolvedFrames.map((f) => f.id));
+
+  // Migrate orphaned objects: null frame_id or referencing non-existent frame
+  let migratedCount = 0;
+  for (const obj of objects) {
+    if (!obj.frame_id || !frameIds.has(obj.frame_id)) {
+      const cx = obj.x + (obj.width || 0) / 2;
+      const cy = obj.y + (obj.height || 0) / 2;
+      let assigned: string | undefined;
+      // Position-based lookup (inline geometry matching frames.ts logic)
+      const BOARD_WIDTH = 4000, BOARD_HEIGHT = 3000, FRAME_GAP = 200;
+      const OFFSET_X = -BOARD_WIDTH / 2, OFFSET_Y = -BOARD_HEIGHT / 2;
+      for (const frame of resolvedFrames) {
+        const fx = frame.index * (BOARD_WIDTH + FRAME_GAP) + OFFSET_X;
+        if (cx >= fx && cx <= fx + BOARD_WIDTH && cy >= OFFSET_Y && cy <= OFFSET_Y + BOARD_HEIGHT) {
+          assigned = frame.id;
+          break;
+        }
+      }
+      // Fallback: closest frame by horizontal distance
+      if (!assigned && resolvedFrames.length > 0) {
+        let closest = resolvedFrames[0];
+        let minDist = Infinity;
+        for (const frame of resolvedFrames) {
+          const fcx = frame.index * (BOARD_WIDTH + FRAME_GAP) + OFFSET_X + BOARD_WIDTH / 2;
+          const dist = Math.abs(cx - fcx);
+          if (dist < minDist) { minDist = dist; closest = frame; }
+        }
+        assigned = closest.id;
+      }
+      if (assigned) {
+        obj.frame_id = assigned;
+        migratedCount++;
+      }
+    }
+  }
+  if (migratedCount > 0) {
+    console.log(`[persistence] migrated ${migratedCount} orphaned objects`);
+  }
+
   // Build CRDT tree: root = LiveObject({ objects: LiveMap, frames: LiveMap })
   const objectsMap = new LiveMap<LiveObject>();
   for (const obj of objects) {
@@ -199,14 +248,8 @@ export async function buildInitialStorage(roomId: string): Promise<SerializedCrd
   }
 
   const framesMap = new LiveMap<LiveObject>();
-  if (frames.length > 0) {
-    for (const frame of frames) {
-      framesMap.set(frame.id, frameToLiveObject(frame));
-    }
-  } else {
-    // Default: single "Frame 1"
-    const defaultFrame: Frame = { id: crypto.randomUUID(), index: 0, label: "Frame 1" };
-    framesMap.set(defaultFrame.id, frameToLiveObject(defaultFrame));
+  for (const frame of resolvedFrames) {
+    framesMap.set(frame.id, frameToLiveObject(frame));
   }
 
   const root = new LiveObject({ objects: objectsMap, frames: framesMap });

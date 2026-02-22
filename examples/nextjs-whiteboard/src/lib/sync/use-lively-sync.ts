@@ -65,10 +65,12 @@ export function useLivelySync(): void {
         if (frame) frames.push(frame);
       });
       useFrameStore.getState().syncFrames(frames);
+      // Re-evaluate objects so lazy frame_id migration picks up the new frame list
+      syncObjects();
     }
 
-    syncObjects();
     syncFrames();
+    syncObjects();
 
     const unsubObjects = objectsMap
       ? room.subscribe(objectsMap, syncObjects, { isDeep: true })

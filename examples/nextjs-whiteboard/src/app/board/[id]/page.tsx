@@ -141,7 +141,7 @@ function BoardPageInner({ roomId, userId, displayName }: { roomId: string; userI
     if (!activeFrameId) return objects;
     const filtered = new Map<string, BoardObject>();
     for (const [id, obj] of objects) {
-      if (obj.frame_id === activeFrameId) {
+      if (obj.frame_id === activeFrameId || !obj.frame_id) {
         filtered.set(id, obj);
       }
     }
