@@ -41,8 +41,8 @@ That's it. `useCursorTracking` computes container-relative coordinates and broad
 | Export | Package | Signature | Returns | Description |
 |---|---|---|---|---|
 | `useCursors` | `@waits/lively-react` | `()` | `Map<string, CursorData>` | All cursor positions in the room, keyed by userId. |
-| `useUpdateCursor` | `@waits/lively-react` | `()` | `(x, y, viewportPos?, viewportScale?) => void` | Stable function to broadcast cursor position. |
-| `useCursorTracking` | `@waits/lively-ui` | `<T extends HTMLElement>()` | `{ ref: RefObject<T>, onMouseMove: (e) => void }` | Attach to a container; auto-broadcasts relative coordinates. |
+| `useUpdateCursor` | `@waits/lively-react` | `()` | `(x, y, viewportPos?, viewportScale?, cursorType?, highlightRect?) => void` | Stable function to broadcast cursor position. |
+| `useCursorTracking` | `@waits/lively-ui` | `<T extends HTMLElement>(options?)` | `{ ref: RefObject<T>, onMouseMove: (e) => void }` | Attach to a container; auto-broadcasts relative coordinates with optional cursor type tracking. |
 | `CursorOverlay` | `@waits/lively-ui` | `({ className? })` | `JSX.Element` | Renders a `<Cursor>` for every other user. Excludes self. |
 | `Cursor` | `@waits/lively-ui` | `({ x, y, color, displayName, className? })` | `JSX.Element` | Single cursor arrow + name label, positioned absolutely. |
 
@@ -64,7 +64,12 @@ interface CursorData {
     x: number;
     y: number;
   };
-  viewportScale?: number; // optional zoom level
+  viewportScale?: number;                      // optional zoom level
+  cursorType?: "default" | "text" | "pointer"; // detected cursor shape
+  highlightRect?: {                            // text element bounds
+    left: number; top: number;
+    width: number; height: number;
+  };
 }
 ```
 
@@ -98,6 +103,20 @@ function Workspace() {
   );
 }
 ```
+
+#### `CursorTrackingOptions`
+
+```ts
+interface CursorTrackingOptions {
+  trackCursorType?: boolean; // default: false
+}
+```
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `trackCursorType` | `boolean` | `false` | When `true`, detects cursor type (text/pointer/default) over prose elements and computes a `highlightRect` for text content. |
+
+When enabled, the hook inspects the hovered element's computed `cursor` style and uses `caretRangeFromPoint` (or `caretPositionFromPoint` in Firefox) to detect text content. Prose elements (`<p>`, `<h1>`–`<h6>`, `<li>`, `<span>`, `<a>`, etc.) are checked; generic containers like `<div>` are skipped.
 
 **How coordinates are computed:**
 
@@ -236,7 +255,9 @@ function ManualTracking() {
   x: number,
   y: number,
   viewportPos?: { x: number; y: number },
-  viewportScale?: number
+  viewportScale?: number,
+  cursorType?: "default" | "text" | "pointer",
+  highlightRect?: { left: number; top: number; width: number; height: number }
 ) => void
 ```
 

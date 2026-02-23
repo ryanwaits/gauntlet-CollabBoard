@@ -34,7 +34,7 @@ import {
 
 // 1. Create a single client instance (module-level singleton)
 const client = new LivelyClient({
-  serverUrl: "ws://localhost:2001",
+  serverUrl: "ws://localhost:1999",
 });
 
 // 2. Wrap your app with providers
@@ -79,7 +79,7 @@ The client manages WebSocket connections and room lifecycles. Create **one insta
 import { LivelyClient } from "@waits/lively-client";
 
 const client = new LivelyClient({
-  serverUrl: "ws://localhost:2001",
+  serverUrl: "ws://localhost:1999",
   reconnect: true,
   maxRetries: 10,
 });
@@ -475,12 +475,12 @@ All Lively hooks (`useRoom`, `useStorage`, `useMutation`, `useSelf`, `useOthers`
 ```tsx
 // Bad -- new client on every render, leaks WebSocket connections
 function App() {
-  const client = new LivelyClient({ serverUrl: "ws://localhost:2001" });
+  const client = new LivelyClient({ serverUrl: "ws://localhost:1999" });
   return <LivelyProvider client={client}>...</LivelyProvider>;
 }
 
 // Good -- module-level singleton
-const client = new LivelyClient({ serverUrl: "ws://localhost:2001" });
+const client = new LivelyClient({ serverUrl: "ws://localhost:1999" });
 
 function App() {
   return <LivelyProvider client={client}>...</LivelyProvider>;

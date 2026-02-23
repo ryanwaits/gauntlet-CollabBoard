@@ -27,7 +27,8 @@ Zero-dependency wire protocol and shared data structures.
 
 **Key exports:**
 - `PresenceUser` — `{ userId, displayName, color, connectedAt }`
-- `CursorData` — `{ userId, displayName, color, x, y, lastUpdate, viewportPos?, viewportScale? }`
+- `CursorData` — `{ userId, displayName, color, x, y, lastUpdate, viewportPos?, viewportScale?, cursorType?, highlightRect? }`
+- `HighlightRect` — `{ left, top, width, height }`
 - `ConnectionStatus` — `"connecting" | "connected" | "reconnecting" | "disconnected"`
 - `StorageOp` — union of `SetOp`, `DeleteOp`, `ListInsertOp`, `ListDeleteOp`, `ListMoveOp` (each with `path[]` and `clock`)
 - `SerializedCrdt` — `SerializedLiveObject | SerializedLiveMap | SerializedLiveList | primitive`
@@ -121,7 +122,7 @@ React 18+ hooks for seamless integration.
 - `useStatus()` — connection status
 - `useLostConnectionListener(cb)` — fires on disconnect
 - `useCursors()` — `Map<userId, CursorData>` (includes viewport fields)
-- `useUpdateCursor()` — `(x, y, viewportPos?, viewportScale?) => void`
+- `useUpdateCursor()` — `(x, y, viewportPos?, viewportScale?, cursorType?, highlightRect?) => void`
 
 **Event hooks:**
 - `useBroadcastEvent(event)` — send typed custom message
@@ -140,7 +141,11 @@ Pre-built styled components for presence and cursors.
 - `Avatar` — circular avatar with initials
 - `AvatarStack` — compact stack with `+N` overflow
 - `ConnectionBadge` — green/yellow/red/gray status dot
-- `useCursorTracking(containerRef)` — attaches mousemove listener, returns `updateCursor`
+- `useCursorTracking(options?)` — attaches mousemove listener with optional cursor type tracking (`CursorTrackingOptions`)
+- `generateName(config)` — configurable name generator with custom dictionaries, separators, styles, and seeds
+- `generateFunName()` — wrapper producing two-word names (adjective + animal)
+- Built-in dictionaries: `adjectives`, `animals`, `colors`, `names`
+- `NumberDictionary.generate()` — random number with min/max/length options
 - `CollabPills` — colored name pills for all users in the room
 
 ---
@@ -204,7 +209,7 @@ CodeMirror 6 integration with collaborative editing, markdown-aware toolbar, and
 |---|---|
 | `storage:init` | `root: SerializedCrdt` (first client only) |
 | `storage:ops` | `ops: StorageOp[]` |
-| `cursor:update` | `x, y, viewportPos?, viewportScale?` |
+| `cursor:update` | `x, y, viewportPos?, viewportScale?, cursorType?, highlightRect?` |
 | Custom | `{ type: string, ... }` relayed to others |
 
 **Server → Client:**

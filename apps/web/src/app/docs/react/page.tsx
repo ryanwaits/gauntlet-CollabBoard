@@ -436,7 +436,7 @@ export default function ReactReferencePage() {
           </CodeBlock>
         </div>
 
-        <div>
+        <div className="mb-6">
           <p className="text-text text-sm font-semibold mb-2">useUpdateCursor</p>
           <CodeBlock>
             <Line>
@@ -445,9 +445,38 @@ export default function ReactReferencePage() {
             </Line>
             <Line>{""}</Line>
             <Line>
+              <span className="text-code-comment">{"// (x, y, viewportPos?, viewportScale?, cursorType?, highlightRect?) => void"}</span>
+            </Line>
+            <Line>
               {"<"}<span className="text-code-func">div</span>{" "}
               <span className="text-text">onMouseMove</span>={"{e => "}
               <span className="text-code-func">updateCursor</span>(e.clientX, e.clientY){"}"}{" />"}
+            </Line>
+          </CodeBlock>
+        </div>
+
+        <div>
+          <p className="text-text text-sm font-semibold mb-2">useCursorTracking <span className="text-muted font-normal">(from @waits/lively-ui)</span></p>
+          <CodeBlock>
+            <Line>
+              <span className="text-code-keyword">import</span>
+              {" { "}
+              <span className="text-text">useCursorTracking</span>
+              {" } "}
+              <span className="text-code-keyword">from</span>{" "}
+              <span className="text-code-string">&quot;@waits/lively-ui&quot;</span>;
+            </Line>
+            <Line>{""}</Line>
+            <Line>
+              <span className="text-code-comment">{"// Options: { trackCursorType?: boolean } — default false"}</span>
+            </Line>
+            <Line>
+              <span className="text-code-keyword">const</span> {"{ ref, onMouseMove }"} ={" "}
+              <span className="text-code-func">useCursorTracking</span>{"<HTMLDivElement>();"}
+            </Line>
+            <Line>
+              <span className="text-code-keyword">const</span> {"{ ref, onMouseMove }"} ={" "}
+              <span className="text-code-func">useCursorTracking</span>{"<HTMLDivElement>({ trackCursorType: true });"}
             </Line>
           </CodeBlock>
         </div>
