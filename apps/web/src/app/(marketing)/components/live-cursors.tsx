@@ -5,9 +5,10 @@ import { LivelyClient } from "@waits/lively-client";
 import { LivelyProvider, RoomProvider } from "@waits/lively-react";
 import { CursorOverlay, useCursorTracking, generateFunName } from "@waits/lively-ui";
 
-const client = new LivelyClient({
-  serverUrl: "https://lively-ws.waits.dev",
-});
+const serverUrl =
+  process.env.NEXT_PUBLIC_LIVELY_URL || "http://localhost:1999";
+
+const client = new LivelyClient({ serverUrl });
 
 function CursorCanvas({ children }: { children: ReactNode }) {
   const { ref, onMouseMove } = useCursorTracking<HTMLDivElement>();

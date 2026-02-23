@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:server": "bun run server/lively.ts",
     "build": "next build",
     "start": "next start"
   },
@@ -20,6 +21,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@waits/lively-server": "workspace:*",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
