@@ -26,6 +26,14 @@ export const metadata: Metadata = {
     description:
       "Add real-time collaboration, presence, and state sync to your application in minutes.",
     type: "website",
+    images: [{ url: "/og.png", width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Lively - Real-time Collaboration SDK",
+    description:
+      "Add real-time collaboration, presence, and state sync to your application in minutes.",
+    images: ["/og.png"],
   },
 };
 
