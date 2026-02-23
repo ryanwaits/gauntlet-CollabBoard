@@ -130,7 +130,7 @@ export function createMockRoom(overrides?: {
     getStorage: overrides?.getStorage ?? mock(() => Promise.resolve({ root: {} })),
     batch: mock((fn: () => any) => fn()),
     send: mock(() => {}),
-    updateCursor: mock((_x: number, _y: number) => {}),
+    updateCursor: mock((_x: number, _y: number, _vp?: any, _vs?: number, _ct?: string, _hr?: any) => {}),
     updatePresence: mock((_data: any) => {}),
     connect: mock(() => {}),
     disconnect: mock(() => {}),

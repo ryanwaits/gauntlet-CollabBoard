@@ -77,7 +77,7 @@ export interface RoomContextBundle<
 
   // Cursors
   useCursors: () => Map<string, CursorData>;
-  useUpdateCursor: () => (x: number, y: number, viewportPos?: { x: number; y: number }, viewportScale?: number) => void;
+  useUpdateCursor: () => (x: number, y: number, viewportPos?: { x: number; y: number }, viewportScale?: number, cursorType?: "default" | "text" | "pointer", highlightRect?: { left: number; top: number; width: number; height: number }) => void;
 
   // Location + presence events
   useOthersOnLocation: (locationId: string) => PresenceUser[];

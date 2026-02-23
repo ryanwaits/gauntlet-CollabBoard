@@ -1,5 +1,5 @@
 import { useSyncExternalStore, useCallback, useRef } from "react";
-import type { CursorData } from "@waits/lively-types";
+import type { CursorData, HighlightRect } from "@waits/lively-types";
 import { useRoom } from "./room-context.js";
 
 const EMPTY_CURSORS: Map<string, CursorData> = new Map();
@@ -33,7 +33,11 @@ export function useCursors(): Map<string, CursorData> {
             prev.viewportScale !== v.viewportScale ||
             prev.viewportPos?.x !== v.viewportPos?.x ||
             prev.viewportPos?.y !== v.viewportPos?.y ||
-            prev.cursorType !== v.cursorType
+            prev.cursorType !== v.cursorType ||
+            prev.highlightRect?.left !== v.highlightRect?.left ||
+            prev.highlightRect?.top !== v.highlightRect?.top ||
+            prev.highlightRect?.width !== v.highlightRect?.width ||
+            prev.highlightRect?.height !== v.highlightRect?.height
           ) {
             same = false;
             break;
@@ -56,11 +60,11 @@ export function useCursors(): Map<string, CursorData> {
  * const updateCursor = useUpdateCursor();
  * <div onMouseMove={e => updateCursor(e.clientX, e.clientY)} />
  */
-export function useUpdateCursor(): (x: number, y: number, viewportPos?: { x: number; y: number }, viewportScale?: number, cursorType?: "default" | "text" | "pointer") => void {
+export function useUpdateCursor(): (x: number, y: number, viewportPos?: { x: number; y: number }, viewportScale?: number, cursorType?: "default" | "text" | "pointer", highlightRect?: HighlightRect) => void {
   const room = useRoom();
   return useCallback(
-    (x: number, y: number, viewportPos?: { x: number; y: number }, viewportScale?: number, cursorType?: "default" | "text" | "pointer") =>
-      room.updateCursor(x, y, viewportPos, viewportScale, cursorType),
+    (x: number, y: number, viewportPos?: { x: number; y: number }, viewportScale?: number, cursorType?: "default" | "text" | "pointer", highlightRect?: HighlightRect) =>
+      room.updateCursor(x, y, viewportPos, viewportScale, cursorType, highlightRect),
     [room]
   );
 }
