@@ -1,8 +1,18 @@
 // Hook
 export { useCursorTracking } from "./use-cursor-tracking.js";
+export type { CursorTrackingOptions } from "./use-cursor-tracking.js";
 
 // Utilities
-export { generateFunName } from "./generate-name.js";
+export {
+  generateName,
+  generateFunName,
+  adjectives,
+  animals,
+  colors,
+  names,
+  NumberDictionary,
+} from "./generate-name.js";
+export type { GenerateNameConfig } from "./generate-name.js";
 
 // Components
 export { Cursor } from "./cursor.js";
