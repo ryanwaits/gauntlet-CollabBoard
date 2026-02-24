@@ -32,13 +32,26 @@ export function usePersistStorage(roomId: string): void {
       timer = setTimeout(persist, DEBOUNCE_MS);
     }
 
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        persist();
+      }
+    }
+
     // Save initial state
     persist();
 
     const unsub = room.subscribe(root, handleChange, { isDeep: true });
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       if (timer) clearTimeout(timer);
+      persist();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       unsub();
     };
   }, [root, room, roomId]);
