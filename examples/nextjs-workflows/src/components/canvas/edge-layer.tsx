@@ -18,7 +18,7 @@ function FlowParticles({ pathD, edgeId }: { pathD: string; edgeId: string }) {
   return (
     <>
       {particles.map((p, i) => (
-        <circle key={`${edgeId}-p${i}`} r="3" fill="#7b61ff" filter="url(#flowGlow)">
+        <circle key={`${edgeId}-p${i}`} r="3" fill="#7b61ff" opacity="0" filter="url(#flowGlow)">
           <animateMotion
             dur={p.dur}
             repeatCount="2"
@@ -33,6 +33,7 @@ function FlowParticles({ pathD, edgeId }: { pathD: string; edgeId: string }) {
             dur={p.dur}
             begin={p.delay}
             repeatCount="2"
+            fill="freeze"
           />
         </circle>
       ))}
