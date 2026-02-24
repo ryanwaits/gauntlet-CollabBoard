@@ -4,6 +4,7 @@ import { useRef, useCallback, useEffect } from "react";
 import { screenToCanvas } from "@/lib/canvas-utils";
 import { useViewportStore } from "@/lib/store/viewport-store";
 import { useBoardStore } from "@/lib/store/board-store";
+import { UNASSIGNED_WORKFLOW_ID } from "@/types/workflow";
 import type { WorkflowMutationsApi } from "@/lib/sync/mutations-context";
 
 const DBLCLICK_MS = 300;
@@ -57,6 +58,9 @@ export function useNodeDrag(
       // Shift+click → toggle multi-selection, no drag
       if (e.shiftKey) {
         useBoardStore.getState().toggleNodeSelection(nodeId);
+        if (node.workflowId !== UNASSIGNED_WORKFLOW_ID) {
+          useBoardStore.getState().toggleWorkflowSelection(node.workflowId);
+        }
         e.preventDefault();
         e.stopPropagation();
         return;

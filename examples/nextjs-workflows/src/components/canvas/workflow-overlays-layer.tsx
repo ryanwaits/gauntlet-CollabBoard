@@ -49,7 +49,14 @@ export function WorkflowOverlaysLayer({ mutations, boardId }: WorkflowOverlaysLa
 
         return (
           <g key={wfId}>
-            <WorkflowRegionTint bbox={extendedBbox} status={wf.stream.status} />
+            <WorkflowRegionTint
+              bbox={extendedBbox}
+              status={wf.stream.status}
+              onClick={(e) => {
+                e.stopPropagation();
+                useBoardStore.getState().selectWorkflow(wfId, { shift: e.shiftKey });
+              }}
+            />
             <WorkflowAnchorBadge
               wfId={wfId}
               bbox={bbox}

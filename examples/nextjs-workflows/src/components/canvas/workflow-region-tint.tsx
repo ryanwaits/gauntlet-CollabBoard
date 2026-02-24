@@ -16,9 +16,10 @@ const STATUS_COLORS: Record<StreamStatus, { fill: string; stroke: string }> = {
 interface WorkflowRegionTintProps {
   bbox: BBox;
   status: StreamStatus;
+  onClick?: (e: React.MouseEvent) => void;
 }
 
-export function WorkflowRegionTint({ bbox, status }: WorkflowRegionTintProps) {
+export function WorkflowRegionTint({ bbox, status, onClick }: WorkflowRegionTintProps) {
   const colors = STATUS_COLORS[status];
   if (bbox.w === 0 && bbox.h === 0) return null;
 
@@ -33,7 +34,9 @@ export function WorkflowRegionTint({ bbox, status }: WorkflowRegionTintProps) {
       fill={colors.fill}
       stroke={colors.stroke}
       strokeWidth={1}
-      pointerEvents="none"
+      pointerEvents="visibleFill"
+      style={{ cursor: "default" }}
+      onClick={onClick}
     />
   );
 }
