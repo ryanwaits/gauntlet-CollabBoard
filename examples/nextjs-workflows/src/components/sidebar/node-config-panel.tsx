@@ -78,7 +78,7 @@ function ConfigForm({ node, onChange, boardId }: { node: WorkflowNode; onChange:
   const config = node.config as any;
   switch (node.type) {
     case "event-trigger":
-      return <EventTriggerForm config={config} onChange={onChange} />;
+      return <EventTriggerForm />;
     case "stx-filter":
       return <StxFilterForm config={config} onChange={onChange} />;
     case "ft-filter":

@@ -1,11 +1,6 @@
-export type TriggerMode = "live" | "single-block" | "range";
-
-export interface EventTriggerConfig {
-  triggerMode?: TriggerMode;
-  startBlock?: number;
-  endBlock?: number;
-  singleBlock?: number;
-}
+// Zero-config: listens for the latest block. Trigger/replay are operational
+// actions on the toolbar, not part of the node config.
+export interface EventTriggerConfig {}
 
 export type StxEventType = "transfer" | "mint" | "burn" | "lock";
 

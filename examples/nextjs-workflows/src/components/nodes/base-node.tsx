@@ -2,7 +2,7 @@
 
 import type { WorkflowNode } from "@/types/workflow";
 import type {
-  EventTriggerConfig, StxFilterConfig, FtFilterConfig, NftFilterConfig,
+  StxFilterConfig, FtFilterConfig, NftFilterConfig,
   ContractCallFilterConfig, ContractDeployFilterConfig, PrintEventFilterConfig, WebhookActionConfig,
 } from "@/types/node-configs";
 import { NODE_DEFINITIONS } from "@/lib/workflow/node-definitions";
@@ -34,19 +34,7 @@ export function getConfigDetails(node: WorkflowNode): ConfigDetail[] {
 
   switch (node.type) {
     case "event-trigger": {
-      const c = node.config as EventTriggerConfig;
-      const mode = c.triggerMode ?? "live";
-      switch (mode) {
-        case "live":
-          add("MODE", "live");
-          break;
-        case "single-block":
-          add("BLOCK", c.singleBlock != null ? String(c.singleBlock) : undefined);
-          break;
-        case "range":
-          add("RANGE", c.startBlock != null && c.endBlock != null ? `${c.startBlock}\u2013${c.endBlock}` : undefined);
-          break;
-      }
+      add("MODE", "live");
       break;
     }
     case "stx-filter": {

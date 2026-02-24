@@ -61,20 +61,6 @@ export function useStreamDeploy(mutations: WorkflowMutationsApi, workflowId: str
         });
       }
 
-      // Execute post-deploy action (trigger/replay)
-      if (result.postDeployAction) {
-        try {
-          const action = result.postDeployAction;
-          if (action.type === "trigger") {
-            await streamsApi.trigger(activeStreamId, action.blockHeight);
-          } else if (action.type === "replay") {
-            await streamsApi.replay(activeStreamId, action.fromBlock, action.toBlock);
-          }
-        } catch (err) {
-          console.warn("Post-deploy action failed:", err);
-        }
-      }
-
       return { ok: true as const };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Deploy failed";
@@ -139,5 +125,17 @@ export function useStreamDeploy(mutations: WorkflowMutationsApi, workflowId: str
     }
   }, [mutations, workflowId]);
 
-  return { deploy, enable, disable, remove, deploying };
+  const trigger = useCallback(async (blockHeight: number) => {
+    const wf = useBoardStore.getState().workflows.get(workflowId);
+    if (!wf?.stream.streamId) return;
+    await streamsApi.trigger(wf.stream.streamId, blockHeight);
+  }, [workflowId]);
+
+  const replay = useCallback(async (fromBlock: number, toBlock: number) => {
+    const wf = useBoardStore.getState().workflows.get(workflowId);
+    if (!wf?.stream.streamId) return;
+    await streamsApi.replay(wf.stream.streamId, fromBlock, toBlock);
+  }, [workflowId]);
+
+  return { deploy, enable, disable, remove, trigger, replay, deploying };
 }

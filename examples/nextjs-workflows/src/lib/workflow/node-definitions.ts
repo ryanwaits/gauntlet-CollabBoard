@@ -18,7 +18,7 @@ export const NODE_DEFINITIONS: Record<WorkflowNodeType, NodeDefinition> = {
   "event-trigger": {
     type: "event-trigger",
     label: "Event Trigger",
-    description: "Listen for blockchain events on Stacks",
+    description: "Listen for the latest Stacks block",
     category: "triggers",
     icon: "Zap",
     color: "#f59e0b",

@@ -2,7 +2,7 @@ import type { WorkflowNode, WorkflowEdge, WorkflowNodeType } from "@/types/workf
 import type {
   StxFilterConfig, FtFilterConfig, NftFilterConfig,
   ContractCallFilterConfig, ContractDeployFilterConfig,
-  PrintEventFilterConfig, WebhookActionConfig, EventTriggerConfig,
+  PrintEventFilterConfig, WebhookActionConfig,
 } from "@/types/node-configs";
 
 // Mirrors the discriminated union from @secondlayer/shared/schemas/filters
@@ -36,12 +36,8 @@ export interface CreateStreamPayload {
   startBlock?: number;
 }
 
-export type PostDeployAction =
-  | { type: "trigger"; blockHeight: number }
-  | { type: "replay"; fromBlock: number; toBlock: number };
-
 export type CompileResult =
-  | { ok: true; stream: CreateStreamPayload; postDeployAction?: PostDeployAction }
+  | { ok: true; stream: CreateStreamPayload }
   | { ok: false; errors: string[] };
 
 const FILTER_NODE_TYPES: Set<WorkflowNodeType> = new Set([
@@ -80,7 +76,6 @@ export function compileStream(
 
   const trigger = triggers[0]!;
   const action = actions[0]!;
-  const triggerConfig = trigger.config as EventTriggerConfig;
   const actionConfig = action.config as WebhookActionConfig;
 
   const resolvedUrl = webhookUrl ?? actionConfig.url;
@@ -139,28 +134,6 @@ export function compileStream(
     return { ok: false, errors };
   }
 
-  // Validate trigger mode fields
-  const triggerMode = triggerConfig.triggerMode ?? "live";
-  if (triggerMode === "range") {
-    if (triggerConfig.startBlock == null || triggerConfig.endBlock == null) {
-      errors.push("Both start and end blocks are required for range mode");
-    } else if (triggerConfig.endBlock < triggerConfig.startBlock) {
-      errors.push("End block must be >= start block");
-    }
-  }
-  if (triggerMode === "single-block" && triggerConfig.singleBlock == null) {
-    errors.push("Block height is required for single-block mode");
-  }
-  if (errors.length > 0) return { ok: false, errors };
-
-  // Determine post-deploy action
-  let postDeployAction: PostDeployAction | undefined;
-  if (triggerMode === "range") {
-    postDeployAction = { type: "replay", fromBlock: triggerConfig.startBlock!, toBlock: triggerConfig.endBlock! };
-  } else if (triggerMode === "single-block") {
-    postDeployAction = { type: "trigger", blockHeight: triggerConfig.singleBlock! };
-  }
-
   return {
     ok: true,
     stream: {
@@ -174,7 +147,6 @@ export function compileStream(
         maxRetries: actionConfig.retryCount ?? 3,
       },
     },
-    postDeployAction,
   };
 }
 
