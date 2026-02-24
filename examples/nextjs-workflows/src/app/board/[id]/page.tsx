@@ -21,6 +21,7 @@ import { NodePaletteSidebar } from "@/components/sidebar/node-palette-sidebar";
 import { ZoomControls } from "@/components/canvas/zoom-controls";
 import { CursorsOverlay } from "@/components/presence/cursors-overlay";
 import { useNodeDrag } from "@/hooks/use-node-drag";
+import { useWorkflowDrag } from "@/hooks/use-workflow-drag";
 import { useConnectionDraw } from "@/hooks/use-connection-draw";
 import { useMarqueeSelect } from "@/hooks/use-marquee-select";
 import { useWorkflowDetection } from "@/hooks/use-workflow-detection";
@@ -183,6 +184,7 @@ function WorkflowPageInner({ boardId }: { boardId: string }) {
 
   // --- Hooks that mutate via Lively ---
   useNodeDrag(svgElement, mutations);
+  useWorkflowDrag(svgElement, mutations);
   const { handlePortPointerDown } = useConnectionDraw(svgElement, mutations);
   const { didJustMarquee } = useMarqueeSelect(svgElement);
 

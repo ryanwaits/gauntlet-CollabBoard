@@ -50,6 +50,7 @@ export function WorkflowOverlaysLayer({ mutations, boardId }: WorkflowOverlaysLa
         return (
           <g key={wfId}>
             <WorkflowRegionTint
+              wfId={wfId}
               bbox={extendedBbox}
               status={wf.stream.status}
               onClick={(e) => {
