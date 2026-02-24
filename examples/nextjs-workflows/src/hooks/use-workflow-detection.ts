@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useStorageRoot } from "@waits/lively-react";
 import { useBoardStore, DEFAULT_STREAM } from "@/lib/store/board-store";
 import { detectWorkflowChains, type DetectedChain } from "@/lib/workflow/detect-workflows";
 import { UNASSIGNED_WORKFLOW_ID } from "@/types/workflow";
@@ -13,9 +14,13 @@ function chainKey(chain: DetectedChain): string {
 export function useWorkflowDetection(mutations: WorkflowMutationsApi, boardId: string) {
   const prevChainsRef = useRef<Map<string, string>>(new Map()); // triggerNodeId → chainKey
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const storage = useStorageRoot();
+  const storageReadyRef = useRef(false);
+  storageReadyRef.current = storage !== null;
 
   useEffect(() => {
     const run = () => {
+      if (!storageReadyRef.current) return;
       const { nodes, edges, workflows } = useBoardStore.getState();
       const chains = detectWorkflowChains(nodes, edges, workflows);
       console.log("[wf-detection] workflows in store:", Array.from(workflows.entries()).map(([id, wf]) => ({ id, name: wf.name, status: wf.stream.status })));
