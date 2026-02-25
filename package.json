@@ -5,9 +5,13 @@
   "workspaces": ["packages/*", "examples/*", "apps/*"],
   "scripts": {
     "build:packages": "bunup",
-    "test:packages": "bun test packages/"
+    "test:packages": "bun test packages/",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "bun run build:packages && changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "2.29.8",
     "bunup": "0.16.28",
     "typescript": "^5"
   },
