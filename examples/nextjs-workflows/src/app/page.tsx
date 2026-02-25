@@ -7,11 +7,11 @@ import {
   LivelyProvider,
   RoomProvider,
   useOthersOnLocation,
+  useMap,
 } from "@waits/lively-react";
 import { DEFAULT_BOARD, DEFAULT_BOARD_ID } from "@/lib/workflow/templates";
 import { useAuthStore } from "@/lib/store/auth-store";
-import { dashboardClient, buildInitialStorageFromSnapshot } from "@/lib/sync/client";
-import { loadSnapshot } from "@/lib/persistence/indexeddb";
+import { dashboardClient } from "@/lib/sync/client";
 import { UNASSIGNED_WORKFLOW_ID } from "@/types/workflow";
 
 /* ------------------------------------------------------------------ */
@@ -28,6 +28,21 @@ function getInitials(name: string): string {
 }
 
 const MAX_AVATARS = 4;
+
+function CardWorkflowCount() {
+  const workflows = useMap("workflows");
+  if (!workflows) return null;
+  let count = 0;
+  for (const key of workflows.keys()) {
+    if (key !== UNASSIGNED_WORKFLOW_ID) count++;
+  }
+  if (count === 0) return null;
+  return (
+    <p className="mt-1 text-[11px] text-gray-400">
+      {count} workflow{count !== 1 ? "s" : ""}
+    </p>
+  );
+}
 
 function CardPresence() {
   // Only show users who are inside the workflow editor, not dashboard observers
@@ -78,29 +93,10 @@ function CardPresence() {
 export default function DashboardPage() {
   const router = useRouter();
   const [displayName, setDisplayName] = useState("");
-  const [workflowCount, setWorkflowCount] = useState<number | null>(null);
   const { userId, displayName: storedName, restored, setIdentity, restore } = useAuthStore();
 
   // Restore identity from sessionStorage on mount
   useEffect(() => { restore(); }, [restore]);
-
-  // Load workflow count from IndexedDB snapshot
-  useEffect(() => {
-    loadSnapshot(DEFAULT_BOARD_ID).then((cached) => {
-      if (!cached) return;
-      try {
-        const storage = buildInitialStorageFromSnapshot(cached);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const workflows = storage.workflows as any;
-        if (!workflows) return;
-        let count = 0;
-        for (const key of workflows.keys()) {
-          if (key !== UNASSIGNED_WORKFLOW_ID) count++;
-        }
-        setWorkflowCount(count);
-      } catch { /* cache unreadable */ }
-    });
-  }, []);
 
   if (!restored) return null;
 
@@ -171,13 +167,7 @@ export default function DashboardPage() {
               <p className="mt-2 text-xs text-gray-500">
                 {DEFAULT_BOARD.description}
               </p>
-              {workflowCount != null && workflowCount > 0 && (
-                <p className="mt-1 text-[11px] text-gray-400">
-                  {workflowCount} workflow{workflowCount !== 1 ? "s" : ""}
-                </p>
-              )}
-
-              {/* Live presence avatars */}
+              {/* Live presence avatars + reactive workflow count */}
               {userId && (
                 <LivelyProvider client={dashboardClient}>
                   <RoomProvider
@@ -186,6 +176,7 @@ export default function DashboardPage() {
                     displayName={storedName}
                     location="dashboard"
                   >
+                    <CardWorkflowCount />
                     <CardPresence />
                   </RoomProvider>
                 </LivelyProvider>
